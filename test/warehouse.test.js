@@ -81,6 +81,48 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.equal(await store.checkAdmin(), false);
 });
 
+test('interrupted bank downloads resume from the saved byte and finish once', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-resume-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const bytes = Buffer.from('abcdefghijklmnopqrstuvwxyz');
+  const item = {
+    id: 'a3326a52-b88a-4f26-8e3a-8888e884497a', category: 'banks', title: 'Test Bank', description: '',
+    fileName: 'Bank.fxp',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/Bank.fxp',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png'
+  };
+  let requests = 0;
+  let resumeOffset = 0;
+  const fetchImpl = async (url, options = {}) => {
+    if (String(url).startsWith('https://raw.githubusercontent.com/')) return new Response(JSON.stringify({ schemaVersion: 1, items: [item] }));
+    requests += 1;
+    if (requests === 1) {
+      let sent = false;
+      return new Response(new ReadableStream({
+        async pull(controller) {
+          if (!sent) { sent = true; controller.enqueue(bytes.subarray(0, 8)); }
+          else { await new Promise((resolve) => setTimeout(resolve, 20)); controller.error(new Error('Connection interrupted')); }
+        }
+      }), { headers: { 'content-length': String(bytes.length) } });
+    }
+    resumeOffset = Number(/^bytes=(\d+)-$/.exec(options.headers?.Range || '')?.[1] || 0);
+    return new Response(bytes.subarray(resumeOffset), {
+      status: 206,
+      headers: { 'content-length': String(bytes.length - resumeOffset), 'content-range': `bytes ${resumeOffset}-${bytes.length - 1}/${bytes.length}` }
+    });
+  };
+  const store = createWarehouseService({
+    dataDirectory: path.join(root, 'Data'), downloadsDirectory: path.join(root, 'Music Base'), fetchImpl
+  });
+  const progress = [];
+  const records = await store.downloadItem(item.id, (value) => progress.push(value));
+  assert.equal(requests, 2);
+  assert.equal(resumeOffset, 8);
+  assert.equal(progress.at(-1), 100);
+  assert.equal(records.length, 1);
+  assert.deepEqual(fs.readFileSync(path.join(root, 'Music Base', 'BANKS', 'Bank.fxp')), bytes);
+});
+
 test('downloads follow the selected directory and DAW folder link points at it', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-path-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

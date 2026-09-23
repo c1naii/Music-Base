@@ -3,6 +3,8 @@ const path = require('node:path');
 const https = require('node:https');
 const crypto = require('node:crypto');
 const { execFile, execFileSync } = require('node:child_process');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 const { promisify } = require('node:util');
 const extractZip = require('extract-zip');
 const sevenZip = require('7zip-bin');
@@ -18,7 +20,8 @@ const CATEGORIES = Object.freeze({
   drumkits: 'DRUMKITS',
   plugins: 'PLUGINS',
   projects: 'PROJECTS',
-  presets: 'PRESETS'
+  presets: 'PRESETS',
+  banks: 'BANKS'
 });
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
@@ -472,10 +475,13 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
         destination = path.join(targetDirectory, folderName);
         archivePath = path.join(targetDirectory, `${folderName}${ext}`);
       }
-      const response = await fetchImpl(item.fileUrl, { redirect: 'follow' });
-      if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
       try {
-        await streamDownload(response, archivePath, onProgress);
+        await fetchFile(item.fileUrl, archivePath, onProgress);
+      } catch (error) {
+        try { fs.unlinkSync(archivePath); } catch {}
+        throw error;
+      }
+      try {
         fs.mkdirSync(destination, { recursive: false });
         await extractArchive(archivePath, destination);
         fs.unlinkSync(archivePath);
@@ -504,9 +510,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
       fileName = `${stem} (${suffix})${ext}`;
       target = path.join(targetDirectory, fileName);
     }
-    const response = await fetchImpl(item.fileUrl, { redirect: 'follow' });
-    if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
-    try { await streamDownload(response, target, onProgress); }
+    try { await fetchFile(item.fileUrl, target, onProgress); }
     catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
@@ -520,31 +524,47 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return listDownloads();
   }
 
-  async function streamDownload(response, target, onProgress) {
-    const total = Number(response.headers.get('content-length')) || 0;
-    const reader = response.body.getReader();
-    const output = fs.createWriteStream(target, { flags: 'wx' });
-    let received = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!output.write(Buffer.from(value))) await new Promise((resolve, reject) => {
-          output.once('drain', resolve); output.once('error', reject);
+  async function fetchFile(url, target, onProgress) {
+    let lastError;
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      let offset = fs.existsSync(target) ? fs.statSync(target).size : 0;
+      if (!offset && fs.existsSync(target)) fs.unlinkSync(target);
+      try {
+        const response = await fetchImpl(url, {
+          redirect: 'follow',
+          ...(offset ? { headers: { Range: `bytes=${offset}-` } } : {})
         });
-        received += value.byteLength;
-        if (total > 0) onProgress(Math.min(99, Math.floor(received / total * 100)));
+        if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
+        let total = Number(response.headers.get('content-length')) || 0;
+        if (offset && response.status === 206) {
+          const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') || '');
+          if (!range || Number(range[1]) !== offset) throw new Error('Invalid partial response');
+          total = Number(range[3]);
+        } else if (offset) {
+          if (response.status !== 200) throw new Error('Resume not supported');
+          fs.unlinkSync(target);
+          offset = 0;
+        }
+        let received = offset;
+        const meter = new Transform({
+          transform(chunk, _encoding, callback) {
+            received += chunk.length;
+            if (total) onProgress(Math.min(99, Math.floor(received / total * 100)));
+            callback(null, chunk);
+          }
+        });
+        await pipeline(Readable.fromWeb(response.body), meter, fs.createWriteStream(target, { flags: offset ? 'a' : 'wx' }));
+        if (total && fs.statSync(target).size !== total) throw new Error('Incomplete download');
+        onProgress(100);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (['EACCES', 'EPERM', 'ENOSPC'].includes(error.code)) break;
+        if (attempt < maxAttempts - 1) await new Promise((resolve) => setTimeout(resolve, Math.min(2000, 250 * (attempt + 1))));
       }
-      await new Promise((resolve, reject) => {
-        output.once('error', reject);
-        output.end(resolve);
-      });
-      onProgress(100);
-    } catch (error) {
-      output.destroy();
-      try { await reader.cancel(); } catch {}
-      throw error;
     }
+    throw new Error(`File download failed after retries: ${lastError?.message || 'unknown error'}`);
   }
 
   function listDownloads() {

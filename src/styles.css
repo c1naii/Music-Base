@@ -79,6 +79,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .settings-path-actions { display: flex; gap: 8px; margin: 8px 0 12px; }
 .settings-action { flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; overflow-wrap: anywhere; border: 1px solid #3b3b3b; border-radius: 3px; background: #181818; color: #c5c5c5; cursor: pointer; font: inherit; font-size: 11px; transition: color .2s, border-color .2s, background-color .2s; }
 .settings-action:hover { border-color: #777; background: #202020; color: #fff; }
+.settings-action.is-connected { border-color: #888; color: #f0f0f0; }
 .settings-hint, .settings-path-status { margin: 11px 0; color: #858585; font-size: 10px; line-height: 1.55; }
 .settings-path-status { min-height: 15px; margin-bottom: 0; color: #aaa; overflow-wrap: anywhere; }
 
@@ -392,10 +393,12 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .warehouse-item-card:hover .warehouse-favorite, .warehouse-favorite:focus-visible, .warehouse-favorite.is-favorite { opacity: 1; }
 .warehouse-favorite.is-favorite, .warehouse-detail-favorite { color: #df7777; }
 .warehouse-detail-view { width: min(100%, 800px); margin: 0 auto; padding: 10px 0 70px; }
-.warehouse-detail-cover { display: block; width: min(100%, 540px); max-height: 340px; margin: 0 auto 25px; border: 1px solid #333; object-fit: cover; }
+.warehouse-detail-cover-wrap { position: relative; width: min(100%, 540px); margin: 0 auto 25px; }
+.warehouse-detail-cover { display: block; width: 100%; max-height: 340px; border: 1px solid #333; object-fit: cover; }
+.warehouse-detail-cover-wrap:hover .warehouse-favorite, .warehouse-detail-cover-wrap:focus-within .warehouse-favorite { opacity: 1; }
 .warehouse-detail-title { margin: 0 0 14px; font: 400 28px Georgia, serif; letter-spacing: .04em; }
 .warehouse-detail-description { max-width: 680px; color: #aaa; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
-.warehouse-detail-favorite { margin: 8px 12px 18px 0; padding: 8px 12px; border: 1px solid #444; border-radius: 3px; background: #151515; cursor: pointer; }
+.warehouse-download-error { color: #b88; font-size: 12px; }
 .warehouse-progress { position: relative; width: min(100%, 460px); height: 28px; margin-top: 16px; border: 1px solid #444; background: #111; }
 .warehouse-progress span { display: block; width: 0; height: 100%; background: #454545; transition: width .12s linear; }
 .warehouse-progress b { position: absolute; inset: 0; display: grid; place-items: center; color: #eee; font-size: 12px; font-weight: 400; }

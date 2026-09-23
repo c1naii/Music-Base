@@ -10,7 +10,8 @@ const defaults = Object.freeze({
   lastPlace: null,
   downloadDirectory: null,
   downloadRoots: [],
-  dawIntegrationTargets: []
+  dawIntegrationTargets: [],
+  connectedDaws: {}
 });
 
 function validBounds(value) {
@@ -24,14 +25,17 @@ function validBounds(value) {
 function normalizePreferences(value = {}) {
   const place = value.lastPlace;
   const validWarehousePlace = place?.type === 'warehouse' &&
-    ['drumkits', 'plugins', 'projects', 'presets'].includes(place.category);
+    ['drumkits', 'plugins', 'projects', 'presets', 'banks'].includes(place.category);
+  const validWarehouseItem = place?.type === 'warehouse-item' &&
+    typeof place.itemId === 'string' && /^[a-f0-9-]{36}$/i.test(place.itemId);
   const lastPlace = place && typeof place === 'object' &&
-    (place.type === 'library' || place.type === 'folder' || place.type === 'topic' || place.type === 'note' || validWarehousePlace) &&
+    (['library', 'folder', 'topic', 'note', 'warehouse-home', 'warehouse-favorites', 'warehouse-downloads'].includes(place.type) || validWarehousePlace || validWarehouseItem) &&
     (place.folderId === undefined || typeof place.folderId === 'string') &&
     (place.topicId === undefined || typeof place.topicId === 'string') &&
     (place.noteTitle === undefined || typeof place.noteTitle === 'string') ? {
       type: place.type,
       ...(validWarehousePlace ? { category: place.category } : {}),
+      ...(validWarehouseItem ? { itemId: place.itemId } : {}),
       ...(place.folderId ? { folderId: place.folderId } : {}),
       ...(place.topicId ? { topicId: place.topicId } : {}),
       ...(place.noteTitle ? { noteTitle: place.noteTitle } : {})
@@ -45,7 +49,12 @@ function normalizePreferences(value = {}) {
     lastPlace,
     downloadDirectory: typeof value.downloadDirectory === 'string' && path.isAbsolute(value.downloadDirectory) ? path.normalize(value.downloadDirectory) : null,
     downloadRoots: Array.isArray(value.downloadRoots) ? [...new Set(value.downloadRoots.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : [],
-    dawIntegrationTargets: Array.isArray(value.dawIntegrationTargets) ? [...new Set(value.dawIntegrationTargets.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : []
+    dawIntegrationTargets: Array.isArray(value.dawIntegrationTargets) ? [...new Set(value.dawIntegrationTargets.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : [],
+    connectedDaws: Object.fromEntries(['flstudio', 'ableton'].flatMap((daw) => {
+      const entry = value.connectedDaws?.[daw];
+      return entry && typeof entry.version === 'string' && typeof entry.installPath === 'string' && path.isAbsolute(entry.installPath)
+        ? [[daw, { version: entry.version.slice(0, 60), installPath: path.normalize(entry.installPath) }]] : [];
+    }))
   };
 }
 

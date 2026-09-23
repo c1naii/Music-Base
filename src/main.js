@@ -1,11 +1,11 @@
 const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
-const fs = require('node:fs');
 const { createUpdater } = require('./updater');
 const { loadPreferences, savePreferences } = require('./preferences');
 const { createNotesStore } = require('./notes');
 const { createWarehouseService } = require('./warehouse');
+const { findInstalledDaw } = require('./daw');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -62,7 +62,8 @@ function publicPreferences() {
     visualEffects: preferences.visualEffects,
     lastPlace: preferences.lastPlace,
     downloadDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
-    downloadDirectoryIsDefault: !preferences.downloadDirectory
+    downloadDirectoryIsDefault: !preferences.downloadDirectory,
+    connectedDaws: preferences.connectedDaws
   };
 }
 
@@ -243,7 +244,7 @@ ipcMain.handle('choose-download-directory', async (event) => {
   if (result.canceled || !result.filePaths[0]) return publicPreferences();
   preferences.downloadDirectory = path.resolve(result.filePaths[0]);
   preferences.downloadRoots = [...new Set([...preferences.downloadRoots, defaultDownloadsDirectory, preferences.downloadDirectory])];
-  warehouseStore.setDownloadsDirectory(preferences.downloadDirectory, preferences.dawIntegrationTargets);
+  warehouseStore.setDownloadsDirectory(preferences.downloadDirectory);
   savePreferences(preferencesFile, preferences);
   return publicPreferences();
 });
@@ -252,24 +253,18 @@ ipcMain.handle('reset-download-directory', (event) => {
   if (!isMainWindow(event)) return null;
   preferences.downloadDirectory = null;
   preferences.downloadRoots = [...new Set([...preferences.downloadRoots, defaultDownloadsDirectory])];
-  warehouseStore.setDownloadsDirectory(defaultDownloadsDirectory, preferences.dawIntegrationTargets);
+  warehouseStore.setDownloadsDirectory(defaultDownloadsDirectory);
   savePreferences(preferencesFile, preferences);
   return publicPreferences();
 });
 
 ipcMain.handle('integrate-daw', (event, daw) => {
   if (!isMainWindow(event) || !['flstudio', 'ableton'].includes(daw)) return null;
-  const documents = app.getPath('documents');
-  const candidates = daw === 'ableton'
-    ? [path.join(documents, 'Ableton', 'User Library')]
-    : [path.join(documents, 'Image-Line', 'FL Studio', 'Packs')];
-  const parent = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!parent) throw new Error('DAW library folder was not detected');
-  const linkedFolder = warehouseStore.integrateWithDaw(parent);
-  preferences.dawIntegrationTargets = [...new Set([...preferences.dawIntegrationTargets, path.dirname(linkedFolder)])];
-  preferences.downloadRoots = [...new Set([...preferences.downloadRoots, preferences.downloadDirectory || defaultDownloadsDirectory])];
+  const installed = findInstalledDaw(daw);
+  if (!installed) throw new Error('DAW installation was not detected');
+  preferences.connectedDaws[daw] = { version: installed.version, installPath: installed.installPath };
   savePreferences(preferencesFile, preferences);
-  return { daw, path: linkedFolder };
+  return installed;
 });
 ipcMain.handle('get-preferences', (event) => {
   if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
@@ -310,6 +305,13 @@ ipcMain.on('install-update', (event) => {
 app.whenReady().then(() => {
   preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
   preferences = loadPreferences(preferencesFile);
+  const previousConnections = JSON.stringify(preferences.connectedDaws);
+  for (const daw of Object.keys(preferences.connectedDaws)) {
+    const installed = findInstalledDaw(daw);
+    if (installed) preferences.connectedDaws[daw] = { version: installed.version, installPath: installed.installPath };
+    else delete preferences.connectedDaws[daw];
+  }
+  if (JSON.stringify(preferences.connectedDaws) !== previousConnections) savePreferences(preferencesFile, preferences);
   notesStore = createNotesStore(path.join(app.getPath('appData'), 'Music Base', 'Data'));
   defaultDownloadsDirectory = path.join(app.getPath('documents'), 'Music Base');
   warehouseStore = createWarehouseService({

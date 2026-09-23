@@ -8,7 +8,7 @@ let ui = window.musicI18n[language].ui;
 let library = baseLibrary;
 let libraryLoaded = false;
 let transitionTimer;
-const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets'];
+const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets', 'banks'];
 const warehouseCategoryList = document.getElementById('warehouse-categories');
 const warehouseEmptyView = document.getElementById('warehouse-empty-view');
 const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
@@ -72,7 +72,7 @@ function renderWarehouseItems() {
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
     card.addEventListener('click', () => showWarehouseItem(item.id));
-    card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showWarehouseItem(item.id); } });
+    card.addEventListener('keydown', (event) => { if (event.target === card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showWarehouseItem(item.id); } });
     const cover = makeElement('span', 'warehouse-cover');
     const image = makeElement('img', 'warehouse-item-image');
     image.src = item.imageUrl;
@@ -95,31 +95,37 @@ function showWarehouseItem(id) {
   if (!item) return;
   warehouseView = 'detail';
   currentWarehouseCategory = item.category;
+  rememberPlace({ type: 'warehouse-item', itemId: id });
   renderWarehouse();
   warehouseDetailView.replaceChildren();
   const back = makeElement('button', 'library-back', ui.allWarehouseSections);
   back.type = 'button'; back.addEventListener('click', () => showWarehouseCategory(item.category));
+  const coverWrap = makeElement('div', 'warehouse-detail-cover-wrap');
   const cover = makeElement('img', 'warehouse-detail-cover'); cover.src = item.imageUrl; cover.alt = '';
+  const favorite = makeElement('button', 'warehouse-favorite' + (warehouseFavorites.includes(id) ? ' is-favorite' : ''), warehouseFavorites.includes(id) ? '\u2665' : '\u2661');
+  favorite.type = 'button'; favorite.setAttribute('aria-label', ui.saveItem);
+  favorite.setAttribute('aria-pressed', String(warehouseFavorites.includes(id)));
+  favorite.addEventListener('click', async () => { warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(id); showWarehouseItem(id); });
+  coverWrap.append(cover, favorite);
   const title = makeElement('h2', 'warehouse-detail-title', item.title);
   const description = makeElement('p', 'warehouse-detail-description', item.description || '');
-  const favorite = makeElement('button', 'warehouse-detail-favorite', warehouseFavorites.includes(id) ? '\u2665 ' + ui.saved : '\u2661 ' + ui.saveItem);
-  favorite.type = 'button';
-  favorite.addEventListener('click', async () => { warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(id); showWarehouseItem(id); });
   const record = warehouseDownloads.find((entry) => entry.itemId === id);
   const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
-  download.type = 'button'; download.disabled = Boolean(record);
+  download.type = 'button'; download.disabled = downloadProgress.has(id);
   const progress = makeElement('div', 'warehouse-progress'); progress.hidden = true;
   progress.innerHTML = '<span></span><b></b>';
   const fill = progress.querySelector('span'); const caption = progress.querySelector('b');
   if (downloadProgress.has(id)) { progress.hidden = false; fill.style.width = `${downloadProgress.get(id)}%`; caption.textContent = `${downloadProgress.get(id)}%`; }
+  const errorStatus = makeElement('p', 'warehouse-download-error');
   download.addEventListener('click', async () => {
+    if (record) { await window.musicBase.openWarehouseDownload(record.id); return; }
+    errorStatus.textContent = '';
     download.disabled = true; progress.hidden = false; downloadProgress.set(id, 0); caption.textContent = '0%'; fill.style.width = '0%';
     try { warehouseDownloads = await window.musicBase.downloadWarehouseItem(id); downloadProgress.delete(id); renderWarehouse(); showWarehouseItem(id); renderWarehouseDownloads(); }
-    catch { download.disabled = false; download.textContent = ui.downloadFailed; downloadProgress.delete(id); }
+    catch { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = ui.downloadFailed; downloadProgress.delete(id); }
   });
   if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
-  if (record) { const open = makeElement('button', 'warehouse-item-download', ui.openFolder); open.type = 'button'; open.addEventListener('click', () => window.musicBase.openWarehouseDownload(record.id)); warehouseDetailView.append(back, cover, title, description, favorite, download, open); }
-  else warehouseDetailView.append(back, cover, title, description, favorite, download, progress);
+  warehouseDetailView.append(back, coverWrap, title, description, download, progress, errorStatus);
 }
 
 window.musicBase.onWarehouseDownloadProgress(({ id, percent }) => {
@@ -180,6 +186,7 @@ function showWarehouseHome() {
   warehouseView = 'categories';
   favoriteFilter = false;
   currentWarehouseCategory = null;
+  rememberPlace({ type: 'warehouse-home' });
   renderWarehouse();
 }
 
@@ -188,12 +195,22 @@ function showWarehouseCategory(category) {
   warehouseView = 'category';
   favoriteFilter = false;
   currentWarehouseCategory = category;
+  rememberPlace({ type: 'warehouse', category });
+  renderWarehouse();
+}
+
+function showWarehouseFavorites() {
+  warehouseView = 'category';
+  currentWarehouseCategory = null;
+  favoriteFilter = true;
+  rememberPlace({ type: 'warehouse-favorites' });
   renderWarehouse();
 }
 
 function showWarehouseDownloads() {
   warehouseView = 'downloads';
   currentWarehouseCategory = null;
+  rememberPlace({ type: 'warehouse-downloads' });
   renderWarehouse();
   window.musicBase.getWarehouseDownloads().then((items) => {
     warehouseDownloads = items || [];
@@ -385,7 +402,7 @@ warehouseCategoryList.addEventListener('click', (event) => {
 });
 document.getElementById('warehouse-back').addEventListener('click', showWarehouseHome);
 document.getElementById('warehouse-downloads').addEventListener('click', showWarehouseDownloads);
-document.getElementById('warehouse-favorites').addEventListener('click', () => { warehouseView = 'category'; currentWarehouseCategory = null; favoriteFilter = true; renderWarehouse(); });
+document.getElementById('warehouse-favorites').addEventListener('click', showWarehouseFavorites);
 document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
 warehouseAdminTrigger.addEventListener('click', () => {
   adminPinInput.value = '';
@@ -662,6 +679,12 @@ function renderPreferences(preferences) {
   if (preferences.downloadDirectory) {
     downloadPathLabel.textContent = `${preferences.downloadDirectory}${preferences.downloadDirectoryIsDefault ? ` · ${ui.defaultBadge}` : ''}`;
   }
+  for (const [buttonId, daw] of [['integrate-flstudio', 'flstudio'], ['integrate-ableton', 'ableton']]) {
+    const button = document.getElementById(buttonId);
+    const connected = Boolean(preferences.connectedDaws?.[daw]);
+    button.setAttribute('aria-pressed', String(connected));
+    button.classList.toggle('is-connected', connected);
+  }
 }
 
 settingsTrigger.addEventListener('click', () => {
@@ -699,7 +722,10 @@ for (const [buttonId, daw] of [['integrate-flstudio', 'flstudio'], ['integrate-a
   document.getElementById(buttonId).addEventListener('click', async () => {
     try {
       const result = await window.musicBase.integrateDaw(daw);
-      if (result) downloadPathStatus.textContent = `${ui.dawIntegrated}: ${result.path}`;
+      if (result) {
+        downloadPathStatus.textContent = `${ui.dawIntegrated}: ${daw === 'flstudio' ? 'FL Studio' : 'Ableton Live'} ${result.version}`;
+        renderPreferences(await window.musicBase.getPreferences());
+      }
     } catch { downloadPathStatus.textContent = ui.dawIntegrationError; }
   });
 }
@@ -776,16 +802,23 @@ function rememberPlace(place) {
 
 async function openPlace(place) {
   if (!place) return;
+  if (place.type === 'warehouse-home' || place.type === 'warehouse-favorites' || place.type === 'warehouse-downloads') {
+    selectTab(document.getElementById('tab-storage'));
+    if (place.type === 'warehouse-home') showWarehouseHome();
+    else if (place.type === 'warehouse-favorites') showWarehouseFavorites();
+    else showWarehouseDownloads();
+    return;
+  }
   if (place.type === 'warehouse-item') {
     selectTab(document.getElementById('tab-storage'));
-    showWarehouseItem(place.itemId);
-    rememberPlace(place);
+    if (!warehouseCatalog.items.some((item) => item.id === place.itemId)) await refreshWarehouse();
+    if (warehouseCatalog.items.some((item) => item.id === place.itemId)) showWarehouseItem(place.itemId);
+    else showWarehouseHome();
     return;
   }
   if (place.type === 'warehouse') {
     selectTab(document.getElementById('tab-storage'));
     showWarehouseCategory(place.category);
-    rememberPlace(place);
     return;
   }
   if (place.type === 'note') {

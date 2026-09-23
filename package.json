@@ -1,6 +1,6 @@
 {
   "name": "music-base",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "private": true,
   "description": "Music Base desktop alpha by Cinailo Corporation",
   "author": "Cinailo Corporation",
@@ -9,8 +9,8 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/updater.js && node --check src/preferences.js && node --check src/notes.js && node --check src/warehouse.js && node --check src/knowledge.js && node --check src/i18n.js && node --check src/renderer.js",
-    "test": "node test/updater.test.js && node test/preferences.test.js && node test/notes.test.js && node test/warehouse.test.js && node test/i18n.test.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/updater.js && node --check src/preferences.js && node --check src/notes.js && node --check src/warehouse.js && node --check src/daw.js && node --check src/knowledge.js && node --check src/i18n.js && node --check src/renderer.js",
+    "test": "node test/updater.test.js && node test/preferences.test.js && node test/notes.test.js && node test/warehouse.test.js && node test/daw.test.js && node test/i18n.test.js",
     "build:win": "electron-builder --win nsis --publish never",
     "publish:win": "electron-builder --win nsis --publish always"
   },
