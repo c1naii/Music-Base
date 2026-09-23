@@ -90,8 +90,6 @@ function createApp() {
     effects: preferences.visualEffects ? 'on' : 'off'
   });
 
-  if (preferences.maximized) mainWindow.maximize();
-
   mainWindow.on('close', () => {
     preferences.bounds = mainWindow.getNormalBounds();
     preferences.maximized = mainWindow.isMaximized();
@@ -119,6 +117,7 @@ function createApp() {
   let splashDone = !preferences.showSplash;
   const showMain = () => {
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible() || !mainReady || !splashDone) return;
+    if (preferences.maximized && !mainWindow.isMaximized()) mainWindow.maximize();
     if (preferences.showSplash) fadeIn(mainWindow);
     else mainWindow.show();
   };

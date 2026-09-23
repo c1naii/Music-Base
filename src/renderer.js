@@ -433,6 +433,10 @@ function renderSearch() {
   const matches = searchItems().map((item) => {
     const titleWords = searchWords(item.title);
     const contentWords = searchWords(item.text);
+    if (terms.length === 1 && terms[0].length === 1) {
+      if (!titleWords[0]?.startsWith(terms[0])) return null;
+      return { ...item, score: 100 };
+    }
     if (!terms.every((term) => contentWords.some((word) => word.startsWith(term)))) return null;
     const score = (normalizeSearch(item.title).startsWith(query) ? 100 : 0) +
       terms.filter((term) => titleWords.some((word) => word.startsWith(term))).length * 10;

@@ -100,9 +100,9 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 
 .window-controls { app-region: no-drag; -webkit-app-region: no-drag; justify-self: end; display: flex; }
 .header-right { app-region: no-drag; -webkit-app-region: no-drag; justify-self: end; display: flex; align-items: stretch; }
-.search-trigger { position: relative; display: flex; align-items: center; gap: 8px; align-self: center; height: 40px; margin-right: 14px; padding: 0 4px; border: 0; background: transparent; color: #a5a5a5; cursor: pointer; font-size: 12px; }
+.search-trigger { app-region: no-drag; -webkit-app-region: no-drag; position: absolute; top: 65px; left: 50%; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 9px; width: min(320px, calc(100% - 48px)); height: 46px; padding: 0 12px; border: 0; background: transparent; color: #a5a5a5; cursor: pointer; font-size: 13px; transform: translateX(-50%); }
 .search-trigger:hover, .search-trigger[aria-expanded="true"] { color: #eee; }
-.search-trigger::after { position: absolute; right: 3px; bottom: 5px; left: 26px; height: 1px; background: #777; content: ""; }
+.search-trigger span { padding-bottom: 4px; border-bottom: 1px solid #777; }
 .search-trigger svg, .search-input-wrap svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .window-controls button { display: grid; place-items: center; width: 42px; height: 55px; padding: 0; border: 0; background: transparent; color: #a9a9a9; cursor: pointer; transition: background-color .2s, color .2s; }
 .window-controls button:hover { background: #252525; color: #fff; }
@@ -141,7 +141,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .continue-button:hover { border-color: #ddd; background: #242424; }
 .continue-button[hidden] { display: none; }
 
-.search-panel { position: absolute; top: 63px; right: 125px; z-index: 7; width: min(430px, calc(100% - 36px)); padding: 13px; border: 1px solid #414141; border-radius: 5px; background: #111; box-shadow: 0 20px 60px #000a; animation: update-enter .2s ease-out both; }
+.search-panel { position: absolute; top: 116px; left: 50%; z-index: 7; width: min(520px, calc(100% - 36px)); padding: 13px; border: 1px solid #414141; border-radius: 5px; background: #111; box-shadow: 0 20px 60px #000a; animation: search-enter .2s ease-out both; transform: translateX(-50%); }
 .search-panel[hidden] { display: none; }
 .search-input-wrap { display: flex; align-items: center; gap: 10px; padding: 0 8px; border-bottom: 1px solid #4b4b4b; color: #aaa; }
 .search-input-wrap input { flex: 1; min-width: 0; height: 41px; border: 0; outline: none; background: transparent; color: #eee; font: inherit; font-size: 13px; }
@@ -249,6 +249,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 @keyframes reveal { to { opacity: 1; transform: translateY(0); } }
 @keyframes progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes update-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes search-enter { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes update-glide { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
 @keyframes update-pulse { from { opacity: .55; } to { opacity: 1; } }
 @keyframes home-drift { from { transform: translate3d(0, 8px, 0); } to { transform: translate3d(0, -15px, 0); } }
@@ -261,8 +262,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
   .window-controls button { width: 34px; }
   .knowledge-view { padding: 42px 32px 70px; }
   .library-row { gap: 14px; }
-  .search-trigger { margin-right: 6px; }
-  .search-panel { right: 12px; }
+  .search-panel { top: 112px; }
 }
 
 @media (max-width: 650px) {
