@@ -1,0 +1,50 @@
+{
+  "name": "music-base",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Music Base desktop alpha by Cinailo Corporation",
+  "author": "Cinailo Corporation",
+  "license": "UNLICENSED",
+  "repository": "https://github.com/c1naii/Music-Base",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/updater.js && node --check src/knowledge.js && node --check src/renderer.js",
+    "test": "node test/updater.test.js",
+    "build:win": "electron-builder --win nsis --publish never",
+    "publish:win": "electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^38.2.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.cinailo.musicbase",
+    "productName": "Music Base",
+    "executableName": "Music Base",
+    "copyright": "Copyright © 2026 Cinailo Corporation",
+    "publish": {
+      "provider": "github",
+      "owner": "c1naii",
+      "repo": "Music-Base"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "Music Base Setup.${ext}"
+    }
+  }
+}

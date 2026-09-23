@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Music Base</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="knowledge.js" defer></script>
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="titlebar">
+        <div class="brand" aria-label="Music Base">
+          <img src="../assets/sigil.png" alt="" />
+          <span>MUSIC BASE</span>
+        </div>
+
+        <nav class="tabs" aria-label="Основная навигация" role="tablist">
+          <button class="tab is-active" id="tab-home" type="button" role="tab" aria-selected="true" aria-controls="panel-home" tabindex="0">Главная</button>
+          <button class="tab" id="tab-theory" type="button" role="tab" aria-selected="false" aria-controls="panel-theory" tabindex="-1">Теория музыки</button>
+        </nav>
+
+        <div class="window-controls" aria-label="Управление окном">
+          <button type="button" data-window-action="minimize" aria-label="Свернуть"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
+          <button type="button" data-window-action="maximize" aria-label="Развернуть"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx=".5" /></svg></button>
+          <button type="button" data-window-action="close" aria-label="Закрыть"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9m0-9-9 9" /></svg></button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="page page-home is-active" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
+          <div class="home-center">
+            <img class="hero-logo" src="../assets/sigil.png" alt="Эмблема Music Base" />
+            <h1>Music Base</h1>
+          </div>
+        </section>
+
+        <section class="page page-theory" id="panel-theory" role="tabpanel" aria-labelledby="tab-theory" hidden>
+          <div class="knowledge-view" id="knowledge-view" aria-live="polite"></div>
+        </section>
+      </main>
+
+      <span class="app-version" id="app-version" aria-label="Версия приложения"></span>
+
+      <section class="update-panel" id="update-panel" role="dialog" aria-modal="false" aria-labelledby="update-title" hidden>
+        <button class="update-close" id="update-close" type="button" aria-label="Скрыть уведомление">×</button>
+        <p class="update-kicker" id="update-kicker">MUSIC BASE</p>
+        <h2 id="update-title">Доступно обновление</h2>
+        <div class="update-notes" id="update-notes"></div>
+        <div class="update-progress" id="update-progress" role="progressbar" aria-label="Загрузка обновления" aria-valuemin="0" aria-valuemax="100" hidden>
+          <div class="update-progress-track"><span id="update-progress-fill"></span></div>
+          <p class="update-progress-caption" id="update-progress-caption" aria-live="polite">Подготовка загрузки…</p>
+        </div>
+        <p class="update-error" id="update-error" hidden>Не удалось скачать обновление. Проверьте подключение и попробуйте снова.</p>
+        <button class="update-button" id="update-button" type="button">Обновить</button>
+      </section>
+    </div>
+  </body>
+</html>
