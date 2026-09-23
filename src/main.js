@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const { createUpdater } = require('./updater');
 const { loadPreferences, savePreferences } = require('./preferences');
 const { createNotesStore } = require('./notes');
+const { createWarehouseService } = require('./warehouse');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -16,6 +17,8 @@ let updater;
 let preferences;
 let preferencesFile;
 let notesStore;
+let warehouseStore;
+let warehouseAdminUnlocked = false;
 
 function createWindow(options, page, query) {
   const window = new BrowserWindow({
@@ -168,6 +171,48 @@ ipcMain.on('window-control', (event, action) => {
 
 ipcMain.handle('app-version', () => app.getVersion());
 
+function isMainWindow(event) {
+  return BrowserWindow.fromWebContents(event.sender) === mainWindow;
+}
+
+function requireWarehouseAdmin(event) {
+  if (!isMainWindow(event) || !warehouseAdminUnlocked) throw new Error('Admin access required');
+}
+
+ipcMain.handle('warehouse-catalog', (event) => isMainWindow(event) ? warehouseStore.getCatalog() : null);
+ipcMain.handle('warehouse-admin-check', (event) => isMainWindow(event) ? warehouseStore.checkAdmin() : false);
+ipcMain.handle('warehouse-admin-verify', async (event, pin) => {
+  if (!isMainWindow(event)) return false;
+  warehouseAdminUnlocked = false;
+  if (!warehouseStore.verifyPin(pin) || !await warehouseStore.checkAdmin()) return false;
+  warehouseAdminUnlocked = true;
+  return true;
+});
+ipcMain.on('warehouse-admin-lock', (event) => {
+  if (isMainWindow(event)) warehouseAdminUnlocked = false;
+});
+ipcMain.handle('warehouse-pick-file', async (event, kind) => {
+  requireWarehouseAdmin(event);
+  const image = kind === 'image';
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    ...(image ? { filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }] } : {})
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
+});
+ipcMain.handle('warehouse-save-item', async (event, item) => {
+  requireWarehouseAdmin(event);
+  return warehouseStore.saveItem(item);
+});
+ipcMain.handle('warehouse-delete-item', async (event, id) => {
+  requireWarehouseAdmin(event);
+  return warehouseStore.deleteItem(id);
+});
+ipcMain.handle('warehouse-downloads', (event) => isMainWindow(event) ? warehouseStore.listDownloads() : null);
+ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id) : null);
+ipcMain.handle('warehouse-delete-download', (event, id) => isMainWindow(event) ? warehouseStore.deleteDownload(id) : null);
+
 ipcMain.handle('get-preferences', (event) => {
   if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
   return publicPreferences();
@@ -208,6 +253,10 @@ app.whenReady().then(() => {
   preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
   preferences = loadPreferences(preferencesFile);
   notesStore = createNotesStore(path.join(app.getPath('appData'), 'Music Base', 'Data'));
+  warehouseStore = createWarehouseService({
+    dataDirectory: path.join(app.getPath('userData'), 'Data'),
+    downloadsDirectory: path.join(app.getPath('documents'), 'Music Base')
+  });
   createApp();
   if (app.isPackaged && process.platform === 'win32') {
     updater = createUpdater(autoUpdater, (status) => {

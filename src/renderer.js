@@ -8,6 +8,212 @@ let ui = window.musicI18n[language].ui;
 let library = baseLibrary;
 let libraryLoaded = false;
 let transitionTimer;
+const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets'];
+const warehouseCategoryList = document.getElementById('warehouse-categories');
+const warehouseEmptyView = document.getElementById('warehouse-empty-view');
+const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
+const warehouseEmptyTitle = document.getElementById('warehouse-empty-title');
+const warehouseItemsView = document.getElementById('warehouse-items');
+const warehouseDownloadsList = document.getElementById('warehouse-downloads-list');
+const warehouseDownloadsEmpty = document.getElementById('warehouse-downloads-empty');
+const warehouseAdminTrigger = document.getElementById('warehouse-admin-trigger');
+const adminPinBackdrop = document.getElementById('admin-pin-backdrop');
+const adminPinForm = document.getElementById('admin-pin-form');
+const adminPinInput = document.getElementById('admin-pin-input');
+const adminPinError = document.getElementById('admin-pin-error');
+const adminBackdrop = document.getElementById('admin-backdrop');
+const adminForm = document.getElementById('admin-form');
+const adminItemsList = document.getElementById('admin-list');
+const adminCategoryInput = document.getElementById('admin-category');
+const adminTitleInput = document.getElementById('admin-item-title');
+const adminDescriptionInput = document.getElementById('admin-description');
+const adminImageName = document.getElementById('admin-image-name');
+const adminFileName = document.getElementById('admin-file-name');
+const adminDeleteButton = document.getElementById('admin-delete');
+const adminStatus = document.getElementById('admin-status');
+let warehouseView = 'categories';
+let currentWarehouseCategory = null;
+let warehouseCatalog = { schemaVersion: 1, items: [] };
+let warehouseDownloads = [];
+let adminSelectedId = null;
+let adminImagePath = null;
+let adminFilePath = null;
+let adminDeletePending = false;
+
+function renderWarehouse() {
+  warehouseCategoryList.hidden = warehouseView !== 'categories';
+  warehouseEmptyView.hidden = warehouseView !== 'category';
+  warehouseDownloadsView.hidden = warehouseView !== 'downloads';
+  if (currentWarehouseCategory) warehouseEmptyTitle.textContent = ui[currentWarehouseCategory];
+  renderWarehouseItems();
+  renderWarehouseDownloads();
+}
+
+function renderWarehouseItems() {
+  warehouseItemsView.replaceChildren();
+  if (warehouseView !== 'category') return;
+  const items = warehouseCatalog.items.filter((item) => item.category === currentWarehouseCategory);
+  if (!items.length) {
+    warehouseItemsView.append(makeElement('p', 'warehouse-empty-message', ui.catalogEmpty));
+    return;
+  }
+  for (const item of items) {
+    const card = makeElement('article', 'warehouse-item-card');
+    const image = makeElement('img', 'warehouse-item-image');
+    image.src = item.imageUrl;
+    image.alt = '';
+    image.loading = 'lazy';
+    image.addEventListener('error', () => { image.hidden = true; }, { once: true });
+    const body = makeElement('div', 'warehouse-item-body');
+    body.append(makeElement('h3', 'warehouse-item-title', item.title));
+    if (item.description) body.append(makeElement('p', 'warehouse-item-description', item.description));
+    const download = makeElement('button', 'warehouse-item-download', ui.downloadItem);
+    download.type = 'button';
+    download.addEventListener('click', async () => {
+      download.disabled = true;
+      download.textContent = ui.downloadStarted;
+      try {
+        warehouseDownloads = await window.musicBase.downloadWarehouseItem(item.id);
+        download.textContent = ui.downloadDone;
+        renderWarehouseDownloads();
+      } catch {
+        download.textContent = ui.downloadFailed;
+      } finally {
+        setTimeout(() => { if (download.isConnected) { download.disabled = false; download.textContent = ui.downloadItem; } }, 2200);
+      }
+    });
+    body.append(download);
+    card.append(image, body);
+    warehouseItemsView.append(card);
+  }
+}
+
+function renderWarehouseDownloads() {
+  if (!warehouseDownloadsList) return;
+  warehouseDownloadsList.replaceChildren();
+  const hasDownloads = warehouseDownloads.length > 0;
+  warehouseDownloadsEmpty.hidden = hasDownloads;
+  for (const file of warehouseDownloads) {
+    const row = makeElement('div', 'warehouse-download-row');
+    const details = makeElement('div', 'warehouse-download-details');
+    details.append(makeElement('span', 'warehouse-download-title', file.title));
+    details.append(makeElement('span', 'warehouse-download-filename', `${ui[file.category]} · ${file.fileName}`));
+    const remove = makeElement('button', 'warehouse-download-remove', ui.removeDownload);
+    remove.type = 'button';
+    remove.addEventListener('click', async () => {
+      remove.disabled = true;
+      try {
+        warehouseDownloads = await window.musicBase.deleteWarehouseDownload(file.id);
+        renderWarehouseDownloads();
+      } catch { remove.disabled = false; }
+    });
+    row.append(details, remove);
+    warehouseDownloadsList.append(row);
+  }
+}
+
+function showWarehouseHome() {
+  warehouseView = 'categories';
+  currentWarehouseCategory = null;
+  renderWarehouse();
+}
+
+function showWarehouseCategory(category) {
+  if (!warehouseCategories.includes(category)) return;
+  warehouseView = 'category';
+  currentWarehouseCategory = category;
+  renderWarehouse();
+}
+
+function showWarehouseDownloads() {
+  warehouseView = 'downloads';
+  currentWarehouseCategory = null;
+  renderWarehouse();
+  window.musicBase.getWarehouseDownloads().then((items) => {
+    warehouseDownloads = items || [];
+    renderWarehouseDownloads();
+  });
+}
+
+function renderAdminList() {
+  adminItemsList.replaceChildren();
+  if (!warehouseCatalog.items.length) {
+    adminItemsList.append(makeElement('p', 'admin-empty', ui.adminEmpty));
+    return;
+  }
+  for (const item of [...warehouseCatalog.items].sort((a, b) => a.title.localeCompare(b.title))) {
+    const button = makeElement('button', `admin-list-item${item.id === adminSelectedId ? ' selected' : ''}`);
+    button.type = 'button';
+    button.dataset.adminItem = item.id;
+    button.append(makeElement('span', 'admin-list-item-title', item.title));
+    button.append(makeElement('span', 'admin-list-item-category', ui[item.category]));
+    adminItemsList.append(button);
+  }
+}
+
+function resetAdminForm() {
+  adminSelectedId = null;
+  adminImagePath = null;
+  adminFilePath = null;
+  adminForm.reset();
+  adminCategoryInput.value = currentWarehouseCategory || 'drumkits';
+  adminImageName.textContent = ui.adminNoFileSelected;
+  adminFileName.textContent = ui.adminNoFileSelected;
+  adminDeleteButton.hidden = true;
+  adminDeletePending = false;
+  adminDeleteButton.textContent = ui.adminDelete;
+  renderAdminList();
+}
+
+function editAdminItem(id) {
+  const item = warehouseCatalog.items.find((entry) => entry.id === id);
+  if (!item) return resetAdminForm();
+  adminSelectedId = item.id;
+  adminCategoryInput.value = item.category;
+  adminTitleInput.value = item.title;
+  adminDescriptionInput.value = item.description;
+  adminImagePath = null;
+  adminFilePath = null;
+  adminImageName.textContent = ui.adminNoFileSelected;
+  adminFileName.textContent = item.fileName;
+  adminDeletePending = false;
+  adminDeleteButton.hidden = false;
+  adminDeleteButton.textContent = ui.adminDelete;
+  adminStatus.textContent = '';
+  renderAdminList();
+}
+
+async function chooseAdminFile(kind) {
+  try {
+    const result = await window.musicBase.pickWarehouseFile(kind);
+    if (!result) return;
+    if (kind === 'image') { adminImagePath = result.path; adminImageName.textContent = result.name; }
+    else { adminFilePath = result.path; adminFileName.textContent = result.name; }
+  } catch { adminStatus.textContent = ui.adminSaveError; }
+}
+
+async function refreshWarehouse() {
+  try { warehouseCatalog = await window.musicBase.getWarehouseCatalog() || warehouseCatalog; }
+  catch { /* The main process already falls back to its local catalog cache. */ }
+  renderWarehouse();
+  renderAdminList();
+  renderSearch();
+}
+
+function closeAdmin() {
+  adminBackdrop.hidden = true;
+  adminPinBackdrop.hidden = true;
+  adminPinInput.value = '';
+  window.musicBase.lockWarehouseAdmin();
+}
+
+async function openAdminEditor() {
+  warehouseCatalog = await window.musicBase.getWarehouseCatalog() || warehouseCatalog;
+  renderAdminList();
+  resetAdminForm();
+  adminStatus.textContent = '';
+  adminBackdrop.hidden = false;
+}
 
 function localizedLibrary(code) {
   const translated = window.musicI18n[code].knowledge;
@@ -43,6 +249,9 @@ function applyLanguage(code) {
   document.querySelectorAll('[data-i18n-alt]').forEach((node) => {
     node.alt = ui[node.dataset.i18nAlt];
   });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
+    node.placeholder = ui[node.dataset.i18nPlaceholder];
+  });
   if (libraryLoaded) {
     if (folderId) {
       const folder = library.folders.find((item) => item.id === folderId);
@@ -55,6 +264,8 @@ function applyLanguage(code) {
   if (currentUpdateStatus) renderUpdateStatus(currentUpdateStatus);
   renderNotes();
   renderSearch();
+  renderWarehouse();
+  renderAdminList();
 }
 
 function showPage(pageId, activeTab = null) {
@@ -87,6 +298,7 @@ function showPage(pageId, activeTab = null) {
 function selectTab(tab, moveFocus = false) {
   if (tab.getAttribute('aria-selected') === 'true') return;
   if (tab.id === 'tab-theory' && !libraryLoaded) showLibrary();
+  if (tab.id === 'tab-storage') showWarehouseHome();
   showPage(tab.getAttribute('aria-controls'), tab);
   if (moveFocus) tab.focus();
 }
@@ -101,6 +313,90 @@ tabs.forEach((tab, index) => {
   });
 });
 document.getElementById('home-trigger').addEventListener('click', () => showPage('panel-home'));
+warehouseCategoryList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-warehouse-category]');
+  if (button) showWarehouseCategory(button.dataset.warehouseCategory);
+});
+document.getElementById('warehouse-back').addEventListener('click', showWarehouseHome);
+document.getElementById('warehouse-downloads').addEventListener('click', showWarehouseDownloads);
+document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
+warehouseAdminTrigger.addEventListener('click', () => {
+  adminPinInput.value = '';
+  adminPinError.textContent = '';
+  adminPinBackdrop.hidden = false;
+  adminPinInput.focus();
+});
+document.getElementById('admin-pin-close').addEventListener('click', closeAdmin);
+adminPinBackdrop.addEventListener('click', (event) => { if (event.target === adminPinBackdrop) closeAdmin(); });
+adminBackdrop.addEventListener('click', (event) => { if (event.target === adminBackdrop) closeAdmin(); });
+document.getElementById('admin-close').addEventListener('click', closeAdmin);
+adminPinForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const allowed = await window.musicBase.verifyWarehouseAdmin(adminPinInput.value);
+  if (!allowed) { adminPinError.textContent = ui.adminWrongPin; adminPinInput.select(); return; }
+  adminPinBackdrop.hidden = true;
+  adminPinInput.value = '';
+  await openAdminEditor();
+});
+document.getElementById('admin-new').addEventListener('click', () => {
+  resetAdminForm();
+  adminTitleInput.focus();
+});
+adminItemsList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-admin-item]');
+  if (button) editAdminItem(button.dataset.adminItem);
+});
+document.getElementById('admin-pick-image').addEventListener('click', () => chooseAdminFile('image'));
+document.getElementById('admin-pick-file').addEventListener('click', () => chooseAdminFile('file'));
+adminForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const saveButton = document.getElementById('admin-save');
+  saveButton.disabled = true;
+  adminStatus.textContent = ui.downloadStarted;
+  try {
+    warehouseCatalog = await window.musicBase.saveWarehouseItem({
+      id: adminSelectedId,
+      category: adminCategoryInput.value,
+      title: adminTitleInput.value,
+      description: adminDescriptionInput.value,
+      imagePath: adminImagePath,
+      filePath: adminFilePath
+    });
+    const saved = warehouseCatalog.items.find((item) => item.id === adminSelectedId) ||
+      warehouseCatalog.items.find((item) => item.title === adminTitleInput.value.trim() && item.category === adminCategoryInput.value);
+    adminSelectedId = saved?.id || null;
+    adminImagePath = null;
+    adminFilePath = null;
+    adminImageName.textContent = ui.adminNoFileSelected;
+    adminFileName.textContent = saved?.fileName || ui.adminNoFileSelected;
+    adminDeleteButton.hidden = !saved;
+    adminDeletePending = false;
+    adminDeleteButton.textContent = ui.adminDelete;
+    adminStatus.textContent = ui.adminSaved;
+    renderWarehouse();
+    renderAdminList();
+    renderSearch();
+  } catch { adminStatus.textContent = ui.adminSaveError; }
+  finally { saveButton.disabled = false; }
+});
+adminDeleteButton.addEventListener('click', async () => {
+  if (!adminSelectedId) return;
+  if (!adminDeletePending) {
+    adminDeletePending = true;
+    adminDeleteButton.textContent = ui.adminDeleteConfirm;
+    adminStatus.textContent = ui.adminDeletePrompt;
+    return;
+  }
+  adminDeleteButton.disabled = true;
+  try {
+    warehouseCatalog = await window.musicBase.deleteWarehouseItem(adminSelectedId);
+    resetAdminForm();
+    adminStatus.textContent = ui.adminSaved;
+    renderWarehouse();
+    renderSearch();
+  } catch { adminStatus.textContent = ui.adminSaveError; }
+  finally { adminDeleteButton.disabled = false; }
+});
 
 document.querySelectorAll('[data-window-action]').forEach((button) => {
   button.addEventListener('click', () => {
@@ -388,6 +684,12 @@ function rememberPlace(place) {
 
 async function openPlace(place) {
   if (!place) return;
+  if (place.type === 'warehouse') {
+    selectTab(document.getElementById('tab-storage'));
+    showWarehouseCategory(place.category);
+    rememberPlace(place);
+    return;
+  }
   if (place.type === 'note') {
     if (!notes.some((note) => note.title === place.noteTitle)) notes = await window.musicBase.listNotes();
     if (notes.some((note) => note.title === place.noteTitle)) openNotes(place.noteTitle);
@@ -422,6 +724,12 @@ function searchWords(value) {
 
 function searchItems() {
   const items = [];
+  for (const category of warehouseCategories) {
+    items.push({ kind: 'folder', title: ui[category], detail: ui.storage, text: ui[category], place: { type: 'warehouse', category } });
+  }
+  for (const item of warehouseCatalog.items) {
+    items.push({ kind: 'topic', title: item.title, detail: ui[item.category], text: `${item.title} ${item.description}`, place: { type: 'warehouse', category: item.category } });
+  }
   for (const folder of library.folders) {
     items.push({ kind: 'folder', title: folder.title, detail: folder.description, text: folder.title + ' ' + folder.description, place: { type: 'folder', folderId: folder.id } });
     for (const topic of folder.topics) {
@@ -598,6 +906,9 @@ window.musicBase.getPreferences().then((preferences) => {
   }
 });
 window.musicBase.listNotes().then((items) => { notes = items || []; renderNotes(); renderSearch(); });
+refreshWarehouse();
+window.musicBase.getWarehouseDownloads().then((items) => { warehouseDownloads = items || []; renderWarehouseDownloads(); });
+window.musicBase.checkWarehouseAdmin().then((allowed) => { warehouseAdminTrigger.hidden = !allowed; });
 
 window.musicBase.getVersion().then((version) => {
   versionLabel.textContent = `v${version}`;

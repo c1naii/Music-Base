@@ -17,6 +17,7 @@
           <button class="brand-home" id="home-trigger" type="button" aria-label="Главная" data-i18n-aria="home"><img src="../assets/sigil.png" alt="" /><span>MUSIC BASE</span></button>
           <button class="settings-trigger" id="settings-trigger" type="button" aria-label="Настройки" aria-expanded="false" aria-controls="settings-panel" data-i18n-aria="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4l.6 2.2 1.7.7 2-.9 2.8 2.8-.9 2 .7 1.7L23 11v4l-2.1.5-.7 1.7.9 2-2.8 2.8-2-.9-1.7.7L14 24h-4l-.6-2.2-1.7-.7-2 .9-2.8-2.8.9-2-.7-1.7L1 15v-4l2.1-.5.7-1.7-.9-2L5.7 4l2 .9 1.7-.7L10 2Z" transform="translate(0 -1) scale(.92)"/><circle cx="12" cy="12" r="3.3"/></svg></button>
           <button class="notes-trigger" id="notes-trigger" type="button" aria-label="Заметки" data-i18n-aria="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10l4 4V20.5H5zM15 3.5v4h4M8 12h8M8 16h6"/></svg></button>
+          <button class="admin-trigger" id="warehouse-admin-trigger" type="button" aria-label="Панель администратора" data-i18n-aria="adminPanel" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/><path d="M9 12h6M12 9v6"/></svg></button>
         </div>
 
         <nav class="tabs" aria-label="Основная навигация" data-i18n-aria="navigation" role="tablist">
@@ -59,13 +60,51 @@
         <section class="page page-theory" id="panel-theory" role="tabpanel" aria-labelledby="tab-theory" hidden>
           <div class="knowledge-view" id="knowledge-view" aria-live="polite"></div>
         </section>
-        <section class="page page-storage" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" hidden></section>
+        <section class="page page-storage" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" hidden>
+          <div class="warehouse-view" id="warehouse-view">
+            <header class="warehouse-header"><div><p class="library-kicker" data-i18n="warehouseLabel">ЛИЧНОЕ ХРАНИЛИЩЕ</p><h1 class="library-title" data-i18n="storage">Склад</h1></div><button class="warehouse-downloads" id="warehouse-downloads" type="button" data-i18n="downloads">Загрузки</button></header>
+            <div class="warehouse-categories" id="warehouse-categories">
+              <button class="warehouse-category" type="button" data-warehouse-category="drumkits"><span class="warehouse-category-mark" aria-hidden="true">01</span><span data-i18n="drumkits">ДРАМКИТЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
+              <button class="warehouse-category" type="button" data-warehouse-category="plugins"><span class="warehouse-category-mark" aria-hidden="true">02</span><span data-i18n="plugins">ПЛАГИНЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
+              <button class="warehouse-category" type="button" data-warehouse-category="projects"><span class="warehouse-category-mark" aria-hidden="true">03</span><span data-i18n="projects">ПРОЕКТЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
+              <button class="warehouse-category" type="button" data-warehouse-category="presets"><span class="warehouse-category-mark" aria-hidden="true">04</span><span data-i18n="presets">ПРЕСЕТЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
+            </div>
+            <section class="warehouse-empty-view" id="warehouse-empty-view" hidden><button class="library-back" id="warehouse-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><h2 class="warehouse-empty-title" id="warehouse-empty-title"></h2><div class="warehouse-items" id="warehouse-items"></div></section>
+            <section class="warehouse-downloads-view" id="warehouse-downloads-view" hidden><button class="library-back" id="warehouse-downloads-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><h2 class="warehouse-empty-title" data-i18n="downloads">Загрузки</h2><p class="warehouse-empty-message" id="warehouse-downloads-empty" data-i18n="downloadsEmpty">Здесь пока нет загруженных файлов.</p><div class="warehouse-download-list" id="warehouse-downloads-list"></div></section>
+          </div>
+        </section>
       </main>
 
       <section class="search-panel" id="search-panel" role="dialog" aria-label="Поиск" data-i18n-aria="search" hidden>
         <div class="search-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search-input" type="text" autocomplete="off" spellcheck="false" aria-label="Поиск" data-i18n-aria="search" /><button id="search-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></div>
         <div class="search-results" id="search-results" aria-live="polite"></div>
       </section>
+
+      <div class="admin-pin-backdrop" id="admin-pin-backdrop" hidden>
+        <section class="admin-pin-panel" role="dialog" aria-modal="true" aria-labelledby="admin-pin-title">
+          <header class="admin-header"><h2 id="admin-pin-title" data-i18n="adminPanel">Панель администратора</h2><button id="admin-pin-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></header>
+          <p data-i18n="adminPinHint">Введите пароль, чтобы продолжить.</p>
+          <form id="admin-pin-form"><input id="admin-pin-input" type="password" autocomplete="current-password" data-i18n-placeholder="adminPinPlaceholder" placeholder="Пароль" /><p class="admin-error" id="admin-pin-error" aria-live="polite"></p><button class="admin-primary" type="submit" data-i18n="adminEnter">Продолжить</button></form>
+        </section>
+      </div>
+
+      <div class="admin-backdrop" id="admin-backdrop" hidden>
+        <section class="admin-panel" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+          <header class="admin-header"><div><p class="modal-kicker" data-i18n="adminBadge">АДМИНИСТРАТОР</p><h2 id="admin-title" data-i18n="adminPanel">Панель администратора</h2></div><button id="admin-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></header>
+          <div class="admin-layout">
+            <aside class="admin-sidebar"><button class="admin-new" id="admin-new" type="button" data-i18n="adminNewItem">Новый материал</button><div class="admin-list" id="admin-list"></div></aside>
+            <form class="admin-editor" id="admin-form">
+              <label data-i18n="adminItemTitle" for="admin-item-title">Название</label><input id="admin-item-title" maxlength="120" required />
+              <label data-i18n="adminCategory" for="admin-category">Раздел</label><select id="admin-category"><option value="drumkits" data-i18n="drumkits">ДРАМКИТЫ</option><option value="plugins" data-i18n="plugins">ПЛАГИНЫ</option><option value="projects" data-i18n="projects">ПРОЕКТЫ</option><option value="presets" data-i18n="presets">ПРЕСЕТЫ</option></select>
+              <label data-i18n="adminDescription" for="admin-description">Описание</label><textarea id="admin-description" rows="4" maxlength="5000"></textarea>
+              <div class="admin-file-row"><span data-i18n="adminCover">Обложка</span><button id="admin-pick-image" type="button" data-i18n="adminChooseImage">Выбрать изображение</button><small id="admin-image-name" data-i18n="adminNoFileSelected">Не выбрано</small></div>
+              <div class="admin-file-row"><span data-i18n="adminFile">Файл</span><button id="admin-pick-file" type="button" data-i18n="adminChooseFile">Выбрать файл</button><small id="admin-file-name" data-i18n="adminNoFileSelected">Не выбрано</small></div>
+              <div class="admin-actions"><button class="admin-primary" id="admin-save" type="submit" data-i18n="adminSave">Сохранить</button><button class="admin-delete" id="admin-delete" type="button" data-i18n="adminDelete" hidden>Удалить</button></div>
+              <p class="admin-status" id="admin-status" aria-live="polite"></p>
+            </form>
+          </div>
+        </section>
+      </div>
 
       <div class="notes-backdrop" id="notes-backdrop" hidden>
         <section class="notes-modal" role="dialog" aria-modal="true" aria-labelledby="notes-title">

@@ -25,6 +25,9 @@ test('preferences are validated and saved across launches', () => {
     assert.equal(normalizePreferences({ language: 'invalid', bounds: { width: 1 } }).language, 'ru');
     assert.equal(normalizePreferences({ bounds: { width: 1 } }).bounds, null);
     assert.equal(normalizePreferences({ lastPlace: { type: 'unknown' } }).lastPlace, null);
+    assert.deepEqual(normalizePreferences({ lastPlace: { type: 'warehouse', category: 'presets' } }).lastPlace,
+      { type: 'warehouse', category: 'presets' });
+    assert.equal(normalizePreferences({ lastPlace: { type: 'warehouse', category: '../outside' } }).lastPlace, null);
   } finally {
     if (fs.existsSync(file)) fs.unlinkSync(file);
     fs.rmdirSync(directory);

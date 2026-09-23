@@ -20,12 +20,15 @@ function validBounds(value) {
 
 function normalizePreferences(value = {}) {
   const place = value.lastPlace;
+  const validWarehousePlace = place?.type === 'warehouse' &&
+    ['drumkits', 'plugins', 'projects', 'presets'].includes(place.category);
   const lastPlace = place && typeof place === 'object' &&
-    (place.type === 'library' || place.type === 'folder' || place.type === 'topic' || place.type === 'note') &&
+    (place.type === 'library' || place.type === 'folder' || place.type === 'topic' || place.type === 'note' || validWarehousePlace) &&
     (place.folderId === undefined || typeof place.folderId === 'string') &&
     (place.topicId === undefined || typeof place.topicId === 'string') &&
     (place.noteTitle === undefined || typeof place.noteTitle === 'string') ? {
       type: place.type,
+      ...(validWarehousePlace ? { category: place.category } : {}),
       ...(place.folderId ? { folderId: place.folderId } : {}),
       ...(place.topicId ? { topicId: place.topicId } : {}),
       ...(place.noteTitle ? { noteTitle: place.noteTitle } : {})
