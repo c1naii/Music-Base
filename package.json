@@ -1,6 +1,6 @@
 {
   "name": "music-base",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "private": true,
   "description": "Music Base desktop alpha by Cinailo Corporation",
   "author": "Cinailo Corporation",
@@ -44,7 +44,7 @@
       "target": "nsis"
     },
     "nsis": {
-      "artifactName": "Music Base Setup.${ext}"
+      "artifactName": "Music-Base-Setup.${ext}"
     }
   }
 }

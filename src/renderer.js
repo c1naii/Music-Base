@@ -370,7 +370,6 @@ let notes = [];
 let selectedNote = null;
 let deletePending = false;
 let saveTimer;
-let searchTimer;
 
 function rememberPlace(place) {
   lastPlace = place;
@@ -405,7 +404,7 @@ document.getElementById('tab-theory').addEventListener('click', () => {
 });
 
 function normalizeSearch(value) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/ё/g, 'е').trim();
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
 }
 
 function searchWords(value) {
@@ -433,15 +432,13 @@ function renderSearch() {
   const matches = searchItems().map((item) => {
     const titleWords = searchWords(item.title);
     const contentWords = searchWords(item.text);
-    if (terms.length === 1 && terms[0].length === 1) {
-      if (!titleWords[0]?.startsWith(terms[0])) return null;
-      return { ...item, score: 100 };
-    }
-    if (!terms.every((term) => contentWords.some((word) => word.startsWith(term)))) return null;
-    const score = (normalizeSearch(item.title).startsWith(query) ? 100 : 0) +
-      terms.filter((term) => titleWords.some((word) => word.startsWith(term))).length * 10;
-    return { ...item, score };
-  }).filter(Boolean).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 30);
+    const title = normalizeSearch(item.title);
+    const exactTitle = searchWords(title).join(' ') === terms.join(' ');
+    const matchesTitle = terms.every((term) => titleWords.some((word) => word.startsWith(term)));
+    const matchesContent = terms.every((term) => contentWords.some((word) => word.startsWith(term)));
+    if (!matchesContent) return null;
+    return { ...item, rank: exactTitle ? 3 : matchesTitle ? 2 : 1, phraseMatch: title.includes(query) };
+  }).filter(Boolean).sort((a, b) => b.rank - a.rank || Number(b.phraseMatch) - Number(a.phraseMatch) || a.title.localeCompare(b.title)).slice(0, 30);
   if (!matches.length) { searchResults.append(makeElement('p', 'search-message', ui.searchEmpty)); return; }
   for (const match of matches) {
     const row = makeElement('button', 'search-result');
@@ -463,7 +460,7 @@ searchTrigger.addEventListener('click', () => {
   if (!searchPanel.hidden) { renderSearch(); searchInput.focus(); }
 });
 document.getElementById('search-close').addEventListener('click', closeSearch);
-searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderSearch, 90); });
+searchInput.addEventListener('input', renderSearch);
 
 function renderNotes() {
   notesList.replaceChildren();
