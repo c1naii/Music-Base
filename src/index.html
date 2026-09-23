@@ -17,6 +17,7 @@
           <img src="../assets/sigil.png" alt="" />
           <span>MUSIC BASE</span>
           <button class="settings-trigger" id="settings-trigger" type="button" aria-label="Настройки" aria-expanded="false" aria-controls="settings-panel" data-i18n-aria="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4l.6 2.2 1.7.7 2-.9 2.8 2.8-.9 2 .7 1.7L23 11v4l-2.1.5-.7 1.7.9 2-2.8 2.8-2-.9-1.7.7L14 24h-4l-.6-2.2-1.7-.7-2 .9-2.8-2.8.9-2-.7-1.7L1 15v-4l2.1-.5.7-1.7-.9-2L5.7 4l2 .9 1.7-.7L10 2Z" transform="translate(0 -1) scale(.92)"/><circle cx="12" cy="12" r="3.3"/></svg></button>
+          <button class="notes-trigger" id="notes-trigger" type="button" aria-label="Заметки" data-i18n-aria="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10l4 4V20.5H5zM15 3.5v4h4M8 12h8M8 16h6"/></svg></button>
         </div>
 
         <nav class="tabs" aria-label="Основная навигация" data-i18n-aria="navigation" role="tablist">
@@ -24,11 +25,11 @@
           <button class="tab" id="tab-theory" type="button" role="tab" aria-selected="false" aria-controls="panel-theory" tabindex="-1" data-i18n="theory">Теория музыки</button>
         </nav>
 
-        <div class="window-controls" aria-label="Управление окном" data-i18n-aria="windowControls">
+        <div class="header-right"><button class="search-trigger" id="search-trigger" type="button" aria-label="Поиск" data-i18n-aria="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg><span data-i18n="search">Поиск</span></button><div class="window-controls" aria-label="Управление окном" data-i18n-aria="windowControls">
           <button type="button" data-window-action="minimize" aria-label="Свернуть" data-i18n-aria="minimize"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
           <button type="button" data-window-action="maximize" aria-label="Развернуть" data-i18n-aria="maximize"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx=".5" /></svg></button>
           <button type="button" data-window-action="close" aria-label="Закрыть" data-i18n-aria="close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9m0-9-9 9" /></svg></button>
-        </div>
+        </div></div>
       </header>
 
       <section class="settings-panel" id="settings-panel" role="dialog" aria-labelledby="settings-title" hidden>
@@ -36,12 +37,13 @@
           <h2 id="settings-title" data-i18n="settings">Настройки</h2>
           <button class="settings-close" id="settings-close" type="button" aria-label="Закрыть настройки" data-i18n-aria="closeSettings">×</button>
         </div>
-        <label class="settings-label" for="language-select" data-i18n="language">Язык</label>
-        <select id="language-select" aria-label="Язык" data-i18n-aria="language">
+        <div class="settings-group"><label class="settings-label" for="language-select" data-i18n="language">Язык</label>
+        <div class="select-wrap"><select id="language-select" aria-label="Язык" data-i18n-aria="language">
           <option value="ru">Русский</option>
           <option value="en">English</option>
           <option value="uk">Українська</option>
-        </select>
+        </select></div></div>
+        <div class="settings-divider"></div>
         <button class="settings-row" id="splash-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="showSplash">Показывать стартовую заставку</span><span class="settings-switch" aria-hidden="true"></span></button>
         <button class="settings-row" id="effects-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="visualEffects">Визуальные эффекты</span><span class="settings-switch" aria-hidden="true"></span></button>
       </section>
@@ -51,6 +53,7 @@
           <div class="home-center">
             <img class="hero-logo" src="../assets/sigil.png" alt="Эмблема Music Base" data-i18n-alt="heroLogo" />
             <h1>Music Base</h1>
+            <button class="continue-button" id="continue-button" type="button" data-i18n="continue" hidden>Продолжить</button>
           </div>
         </section>
 
@@ -58,6 +61,22 @@
           <div class="knowledge-view" id="knowledge-view" aria-live="polite"></div>
         </section>
       </main>
+
+      <section class="search-panel" id="search-panel" role="dialog" aria-label="Поиск" data-i18n-aria="search" hidden>
+        <div class="search-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search-input" type="search" autocomplete="off" spellcheck="false" aria-label="Поиск" data-i18n-aria="search" /><button id="search-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></div>
+        <div class="search-results" id="search-results" aria-live="polite"></div>
+      </section>
+
+      <div class="notes-backdrop" id="notes-backdrop" hidden>
+        <section class="notes-modal" role="dialog" aria-modal="true" aria-labelledby="notes-title">
+          <header class="notes-header"><div><p class="modal-kicker">MUSIC BASE</p><h2 id="notes-title" data-i18n="notes">Заметки</h2></div><button id="notes-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></header>
+          <div class="notes-layout"><aside class="notes-sidebar"><button class="note-new" id="note-new" type="button" data-i18n="newNote">Новая заметка</button><div class="notes-list" id="notes-list"></div></aside>
+          <div class="notes-editor"><div class="note-create" id="note-create" hidden><label for="note-create-title" data-i18n="noteName">Название заметки</label><input id="note-create-title" maxlength="120" type="text" /><button id="note-create-button" type="button" data-i18n="create">Создать</button><span id="note-create-error" aria-live="polite"></span></div>
+            <div class="note-edit" id="note-edit" hidden><div class="note-edit-top"><input id="note-title-input" maxlength="120" type="text" aria-label="Название заметки" data-i18n-aria="noteName" /><button id="note-pin" type="button" aria-pressed="false" data-i18n="pin">Закрепить</button></div><textarea id="note-content" spellcheck="true" aria-label="Текст заметки" data-i18n-aria="noteContent"></textarea><div class="note-actions"><span id="note-status" aria-live="polite"></span><button id="note-delete" type="button" data-i18n="delete">Удалить</button><button id="note-save" type="button" data-i18n="save">Сохранить</button></div></div>
+            <p class="note-empty" id="note-empty" data-i18n="notesEmpty">Заметок пока нет</p>
+          </div></div>
+        </section>
+      </div>
 
       <span class="app-version" id="app-version" aria-label="Версия приложения" data-i18n-aria="appVersion"></span>
 

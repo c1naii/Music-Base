@@ -11,7 +11,13 @@ window.musicI18n = {
       knowledgeBase: 'БАЗА ЗНАНИЙ', libraryDescription: 'От первых нот до собственного музыкального наброска.',
       allSections: 'Все разделы', topicCount: 'темы', concepts: 'Основные понятия', example: 'Пример', practice: 'Применение в музыке',
       sources: 'ИСТОЧНИКИ', minimize: 'Свернуть', maximize: 'Развернуть', close: 'Закрыть',
-      windowControls: 'Управление окном', navigation: 'Основная навигация', heroLogo: 'Эмблема Music Base'
+      windowControls: 'Управление окном', navigation: 'Основная навигация', heroLogo: 'Эмблема Music Base',
+      search: 'Поиск', searchEmpty: 'Ничего не найдено', searchHint: 'Введите запрос для поиска по материалам и заметкам',
+      folder: 'Раздел', material: 'Материал', continue: 'Продолжить', notes: 'Заметки', newNote: 'Новая заметка',
+      noteName: 'Название заметки', noteContent: 'Текст заметки', create: 'Создать', save: 'Сохранить',
+      delete: 'Удалить', pin: 'Закрепить', unpin: 'Открепить', notesEmpty: 'Заметок пока нет',
+      noteSaved: 'Сохранено', noteError: 'Не удалось сохранить заметку', noteDuplicate: 'Заметка с таким названием уже есть',
+      noteInvalid: 'Проверьте название заметки', confirmDelete: 'Удалить заметку?'
     }
   },
   en: {
@@ -26,7 +32,13 @@ window.musicI18n = {
       knowledgeBase: 'KNOWLEDGE BASE', libraryDescription: 'From your first notes to your own musical sketch.',
       allSections: 'All sections', topicCount: 'topics', concepts: 'Key concepts', example: 'Example', practice: 'Use in music',
       sources: 'SOURCES', minimize: 'Minimize', maximize: 'Maximize', close: 'Close',
-      windowControls: 'Window controls', navigation: 'Main navigation', heroLogo: 'Music Base emblem'
+      windowControls: 'Window controls', navigation: 'Main navigation', heroLogo: 'Music Base emblem',
+      search: 'Search', searchEmpty: 'No results found', searchHint: 'Search materials and notes',
+      folder: 'Section', material: 'Material', continue: 'Continue', notes: 'Notes', newNote: 'New note',
+      noteName: 'Note title', noteContent: 'Note text', create: 'Create', save: 'Save',
+      delete: 'Delete', pin: 'Pin', unpin: 'Unpin', notesEmpty: 'No notes yet',
+      noteSaved: 'Saved', noteError: 'Could not save note', noteDuplicate: 'A note with this title already exists',
+      noteInvalid: 'Check the note title', confirmDelete: 'Delete this note?'
     },
     knowledge: {
       sources: { iy: 'IY Beats · basics', wander: 'вандер', iyMelody: 'IY Beats · melodies' },
@@ -247,7 +259,13 @@ window.musicI18n = {
       knowledgeBase: 'БАЗА ЗНАНЬ', libraryDescription: 'Від перших нот до власного музичного начерку.',
       allSections: 'Усі розділи', topicCount: 'теми', concepts: 'Основні поняття', example: 'Приклад', practice: 'Застосування в музиці',
       sources: 'ДЖЕРЕЛА', minimize: 'Згорнути', maximize: 'Розгорнути', close: 'Закрити',
-      windowControls: 'Керування вікном', navigation: 'Основна навігація', heroLogo: 'Емблема Music Base'
+      windowControls: 'Керування вікном', navigation: 'Основна навігація', heroLogo: 'Емблема Music Base',
+      search: 'Пошук', searchEmpty: 'Нічого не знайдено', searchHint: 'Шукайте матеріали й нотатки',
+      folder: 'Розділ', material: 'Матеріал', continue: 'Продовжити', notes: 'Нотатки', newNote: 'Нова нотатка',
+      noteName: 'Назва нотатки', noteContent: 'Текст нотатки', create: 'Створити', save: 'Зберегти',
+      delete: 'Видалити', pin: 'Закріпити', unpin: 'Відкріпити', notesEmpty: 'Нотаток поки немає',
+      noteSaved: 'Збережено', noteError: 'Не вдалося зберегти нотатку', noteDuplicate: 'Нотатка з такою назвою вже існує',
+      noteInvalid: 'Перевірте назву нотатки', confirmDelete: 'Видалити нотатку?'
     },
     knowledge: {
       sources: { iy: 'IY Beats · основи', wander: 'вандер', iyMelody: 'IY Beats · мелодії' },

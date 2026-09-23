@@ -3,6 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const { createUpdater } = require('./updater');
 const { loadPreferences, savePreferences } = require('./preferences');
+const { createNotesStore } = require('./notes');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -14,6 +15,7 @@ let splashWindow;
 let updater;
 let preferences;
 let preferencesFile;
+let notesStore;
 
 function createWindow(options, page, query) {
   const window = new BrowserWindow({
@@ -52,7 +54,8 @@ function publicPreferences() {
   return {
     language: preferences.language,
     showSplash: preferences.showSplash,
-    visualEffects: preferences.visualEffects
+    visualEffects: preferences.visualEffects,
+    lastPlace: preferences.lastPlace
   };
 }
 
@@ -182,6 +185,23 @@ ipcMain.handle('set-preference', (event, key, value) => {
   return publicPreferences();
 });
 
+ipcMain.handle('set-last-place', (event, place) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
+  const next = require('./preferences').normalizePreferences({ ...preferences, lastPlace: place }).lastPlace;
+  if (!next) return null;
+  preferences.lastPlace = next;
+  savePreferences(preferencesFile, preferences);
+  return next;
+});
+
+for (const [channel, method] of [['notes-list', 'list'], ['notes-create', 'create'],
+  ['notes-save', 'save'], ['notes-delete', 'remove']]) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
+    return notesStore[method](...args);
+  });
+}
+
 ipcMain.on('install-update', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window === mainWindow) updater?.install();
@@ -190,6 +210,7 @@ ipcMain.on('install-update', (event) => {
 app.whenReady().then(() => {
   preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
   preferences = loadPreferences(preferencesFile);
+  notesStore = createNotesStore(path.join(app.getPath('appData'), 'Music Base', 'Data'));
   createApp();
   if (app.isPackaged && process.platform === 'win32') {
     updater = createUpdater(autoUpdater, (status) => {

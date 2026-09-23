@@ -11,6 +11,7 @@
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .app-shell *, .splash * { user-select: none; -webkit-user-select: none; }
 .app-shell select, .app-shell option { user-select: auto; -webkit-user-select: auto; }
+.app-shell input, .app-shell textarea { user-select: text; -webkit-user-select: text; }
 
 button { font: inherit; }
 
@@ -45,18 +46,24 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .settings-trigger { app-region: no-drag; -webkit-app-region: no-drag; display: grid; place-items: center; width: 28px; height: 28px; margin-left: 2px; padding: 5px; border: 0; border-radius: 3px; background: transparent; color: #898989; cursor: pointer; transition: color .2s, background-color .2s; }
 .settings-trigger:hover, .settings-trigger[aria-expanded="true"] { color: #eee; background: #252525; }
 .settings-trigger svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linejoin: round; }
+.notes-trigger { app-region: no-drag; -webkit-app-region: no-drag; display: grid; place-items: center; width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 3px; background: transparent; color: #898989; cursor: pointer; transition: color .2s, background-color .2s; }
+.notes-trigger:hover { color: #eee; background: #252525; }
+.notes-trigger svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
 
-.settings-panel { position: absolute; top: 64px; left: 22px; z-index: 6; width: min(320px, calc(100% - 44px)); padding: 22px 23px 18px; border: 1px solid #454545; border-radius: 5px; background: #111; box-shadow: 0 18px 60px rgba(0, 0, 0, .55); animation: update-enter .25s ease-out both; }
+.settings-panel { position: absolute; top: 64px; left: 22px; z-index: 6; width: min(344px, calc(100% - 44px)); padding: 25px 26px 20px; border: 1px solid #3d3d3d; border-radius: 6px; background: #111; box-shadow: 0 18px 60px rgba(0, 0, 0, .55); animation: update-enter .25s ease-out both; }
 .settings-panel[hidden] { display: none; }
-.settings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23px; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #292929; }
 .settings-header h2 { margin: 0; font-size: 15px; font-weight: 400; }
 .settings-close { width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: #888; cursor: pointer; font-size: 20px; font-weight: 300; }
 .settings-close:hover { color: #fff; }
 .settings-label { display: block; margin-bottom: 9px; color: #aaa; font-size: 12px; }
-#language-select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #484848; border-radius: 3px; background: #181818; color: #eee; cursor: pointer; font: inherit; font-size: 12px; }
+.select-wrap { position: relative; }
+.select-wrap::after { position: absolute; top: 13px; right: 15px; width: 7px; height: 7px; border-right: 1px solid #aaa; border-bottom: 1px solid #aaa; content: ""; transform: rotate(45deg); pointer-events: none; }
+#language-select { appearance: none; width: 100%; height: 40px; padding: 0 38px 0 13px; border: 1px solid #484848; border-radius: 3px; background: #181818; color: #eee; cursor: pointer; font: inherit; font-size: 12px; }
+.settings-divider { height: 1px; margin: 22px 0 4px; background: #292929; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 49px; padding: 12px 0; border: 0; border-bottom: 1px solid #292929; background: transparent; color: #c9c9c9; cursor: pointer; font-size: 12px; text-align: left; }
 .settings-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.settings-row:first-of-type { margin-top: 15px; }
+.settings-row:first-of-type { margin-top: 3px; }
 .settings-switch { position: relative; flex: 0 0 30px; width: 30px; height: 16px; border: 1px solid #777; border-radius: 9px; background: #242424; transition: background-color .2s, border-color .2s; }
 .settings-switch::after { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #999; content: ""; transition: transform .2s, background-color .2s; }
 .settings-row[aria-checked="true"] .settings-switch { border-color: #d3d3d3; background: #cecece; }
@@ -92,6 +99,11 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .tab.is-active::after { transform: scaleX(1); opacity: 1; }
 
 .window-controls { app-region: no-drag; -webkit-app-region: no-drag; justify-self: end; display: flex; }
+.header-right { app-region: no-drag; -webkit-app-region: no-drag; justify-self: end; display: flex; align-items: stretch; }
+.search-trigger { position: relative; display: flex; align-items: center; gap: 8px; align-self: center; height: 40px; margin-right: 14px; padding: 0 4px; border: 0; background: transparent; color: #a5a5a5; cursor: pointer; font-size: 12px; }
+.search-trigger:hover, .search-trigger[aria-expanded="true"] { color: #eee; }
+.search-trigger::after { position: absolute; right: 3px; bottom: 5px; left: 26px; height: 1px; background: #777; content: ""; }
+.search-trigger svg, .search-input-wrap svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .window-controls button { display: grid; place-items: center; width: 42px; height: 55px; padding: 0; border: 0; background: transparent; color: #a9a9a9; cursor: pointer; transition: background-color .2s, color .2s; }
 .window-controls button:hover { background: #252525; color: #fff; }
 .window-controls button:last-child:hover { background: #6c2828; }
@@ -125,6 +137,54 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .home-center { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 24px; margin-top: -45px; }
 .hero-logo { width: 124px; height: 124px; object-fit: contain; mix-blend-mode: screen; }
 .home-center h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(30px, 4vw, 44px); font-weight: 400; letter-spacing: .31em; line-height: 1.2; text-indent: .31em; text-transform: uppercase; }
+.continue-button { min-width: 144px; margin-top: 12px; padding: 10px 22px; border: 1px solid #777; border-radius: 3px; background: rgba(23, 23, 23, .8); color: #eee; cursor: pointer; font-size: 12px; letter-spacing: .07em; transition: border-color .2s, background-color .2s; }
+.continue-button:hover { border-color: #ddd; background: #242424; }
+.continue-button[hidden] { display: none; }
+
+.search-panel { position: absolute; top: 63px; right: 125px; z-index: 7; width: min(430px, calc(100% - 36px)); padding: 13px; border: 1px solid #414141; border-radius: 5px; background: #111; box-shadow: 0 20px 60px #000a; animation: update-enter .2s ease-out both; }
+.search-panel[hidden] { display: none; }
+.search-input-wrap { display: flex; align-items: center; gap: 10px; padding: 0 8px; border-bottom: 1px solid #4b4b4b; color: #aaa; }
+.search-input-wrap input { flex: 1; min-width: 0; height: 41px; border: 0; outline: none; background: transparent; color: #eee; font: inherit; font-size: 13px; }
+.search-input-wrap button { border: 0; background: none; color: #aaa; cursor: pointer; font-size: 21px; }
+.search-results { max-height: min(420px, calc(100vh - 145px)); overflow-y: auto; scrollbar-color: #444 transparent; scrollbar-width: thin; }
+.search-message { margin: 18px 9px; color: #888; font-size: 12px; }
+.search-result { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 9px; border: 0; border-bottom: 1px solid #282828; background: transparent; color: #ddd; cursor: pointer; text-align: left; }
+.search-result:hover { background: #1c1c1c; }
+.search-result-type { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.search-result-title { font-size: 13px; }
+.search-result-detail { display: block; max-width: 100%; overflow: hidden; color: #8b8b8b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.notes-backdrop { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; padding: 24px; background: #0009; }
+.notes-backdrop[hidden], .note-create[hidden], .note-edit[hidden], .note-empty[hidden] { display: none; }
+.notes-modal { display: flex; flex-direction: column; width: min(760px, 100%); height: min(535px, 100%); border: 1px solid #494949; border-radius: 6px; background: #101010; box-shadow: 0 28px 90px #000c; animation: update-enter .25s ease-out both; }
+.notes-header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding: 21px 25px 18px; border-bottom: 1px solid #303030; }
+.modal-kicker { margin: 0 0 6px; color: #767676; font-size: 9px; letter-spacing: .24em; }
+.notes-header h2 { margin: 0; font-size: 17px; font-weight: 400; }
+.notes-header button { border: 0; background: transparent; color: #888; cursor: pointer; font-size: 24px; }
+.notes-header button:hover { color: #eee; }
+.notes-layout { display: grid; grid-template-columns: 225px minmax(0, 1fr); flex: 1; min-height: 0; }
+.notes-sidebar { min-height: 0; padding: 17px 13px; border-right: 1px solid #303030; overflow-y: auto; }
+.note-new { width: 100%; padding: 10px; border: 1px solid #5b5b5b; border-radius: 3px; background: #1b1b1b; color: #eee; cursor: pointer; font-size: 12px; }
+.note-new:hover { background: #282828; }
+.notes-list { margin-top: 15px; }
+.note-list-row { display: block; width: 100%; padding: 11px 9px; overflow: hidden; border: 0; border-bottom: 1px solid #262626; background: transparent; color: #aaa; cursor: pointer; font-size: 12px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.note-list-row:hover, .note-list-row.selected { background: #202020; color: #eee; }
+.notes-editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 21px 23px; }
+.note-empty { margin: auto; color: #777; font-size: 13px; }
+.note-create { display: flex; flex-direction: column; align-items: flex-start; gap: 13px; }
+.note-create label { color: #aaa; font-size: 12px; }
+.note-create input, .note-edit-top input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #474747; border-radius: 3px; outline: none; background: #171717; color: #eee; font: inherit; font-size: 13px; }
+.note-create input:focus, .note-edit-top input:focus, .note-edit textarea:focus { border-color: #888; }
+.note-create button, .note-actions button, .note-edit-top button { padding: 8px 13px; border: 1px solid #626262; border-radius: 3px; background: #1b1b1b; color: #ddd; cursor: pointer; font-size: 11px; }
+.note-create button:hover, .note-actions button:hover, .note-edit-top button:hover { border-color: #aaa; }
+#note-create-error, #note-status { color: #aaa; font-size: 11px; }
+.note-edit { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.note-edit-top { display: flex; gap: 11px; }
+.note-edit-top button { white-space: nowrap; }
+.note-edit textarea { flex: 1; width: 100%; min-height: 80px; margin-top: 17px; padding: 12px; resize: none; border: 1px solid #393939; border-radius: 3px; outline: none; background: #151515; color: #ddd; font: inherit; font-size: 13px; line-height: 1.6; }
+.note-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.note-actions span { flex: 1; }
+.note-actions button:last-child { border-color: #999; background: #ddd; color: #111; }
 
 .page-theory { background: radial-gradient(ellipse at 50% 50%, #111 0%, #090909 68%); }
 .knowledge-view { width: 100%; height: 100%; padding: 62px max(36px, calc((100vw - 900px) / 2)) 80px; overflow-y: auto; scrollbar-color: #414141 transparent; scrollbar-width: thin; }
@@ -201,6 +261,8 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
   .window-controls button { width: 34px; }
   .knowledge-view { padding: 42px 32px 70px; }
   .library-row { gap: 14px; }
+  .search-trigger { margin-right: 6px; }
+  .search-panel { right: 12px; }
 }
 
 @media (max-width: 650px) {

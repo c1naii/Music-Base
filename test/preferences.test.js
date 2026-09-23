@@ -10,18 +10,21 @@ test('preferences are validated and saved across launches', () => {
   const file = path.join(directory, 'preferences.json');
   try {
     assert.deepEqual(loadPreferences(file), {
-      language: 'ru', showSplash: true, visualEffects: true, bounds: null, maximized: false
+      language: 'ru', showSplash: true, visualEffects: true, bounds: null, maximized: false, lastPlace: null
     });
     savePreferences(file, {
       language: 'uk', showSplash: false, visualEffects: false,
-      bounds: { x: 120, y: 80, width: 940, height: 640 }, maximized: true
+      bounds: { x: 120, y: 80, width: 940, height: 640 }, maximized: true,
+      lastPlace: { type: 'topic', folderId: 'sound', topicId: 'intervals' }
     });
     assert.deepEqual(loadPreferences(file), {
       language: 'uk', showSplash: false, visualEffects: false,
-      bounds: { x: 120, y: 80, width: 940, height: 640 }, maximized: true
+      bounds: { x: 120, y: 80, width: 940, height: 640 }, maximized: true,
+      lastPlace: { type: 'topic', folderId: 'sound', topicId: 'intervals' }
     });
     assert.equal(normalizePreferences({ language: 'invalid', bounds: { width: 1 } }).language, 'ru');
     assert.equal(normalizePreferences({ bounds: { width: 1 } }).bounds, null);
+    assert.equal(normalizePreferences({ lastPlace: { type: 'unknown' } }).lastPlace, null);
   } finally {
     if (fs.existsSync(file)) fs.unlinkSync(file);
     fs.rmdirSync(directory);
