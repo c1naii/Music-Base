@@ -7,6 +7,7 @@
     <title>Music Base</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="knowledge.js" defer></script>
+    <script src="i18n.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
   <body>
@@ -15,24 +16,40 @@
         <div class="brand" aria-label="Music Base">
           <img src="../assets/sigil.png" alt="" />
           <span>MUSIC BASE</span>
+          <button class="settings-trigger" id="settings-trigger" type="button" aria-label="Настройки" aria-expanded="false" aria-controls="settings-panel" data-i18n-aria="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4l.6 2.2 1.7.7 2-.9 2.8 2.8-.9 2 .7 1.7L23 11v4l-2.1.5-.7 1.7.9 2-2.8 2.8-2-.9-1.7.7L14 24h-4l-.6-2.2-1.7-.7-2 .9-2.8-2.8.9-2-.7-1.7L1 15v-4l2.1-.5.7-1.7-.9-2L5.7 4l2 .9 1.7-.7L10 2Z" transform="translate(0 -1) scale(.92)"/><circle cx="12" cy="12" r="3.3"/></svg></button>
         </div>
 
-        <nav class="tabs" aria-label="Основная навигация" role="tablist">
-          <button class="tab is-active" id="tab-home" type="button" role="tab" aria-selected="true" aria-controls="panel-home" tabindex="0">Главная</button>
-          <button class="tab" id="tab-theory" type="button" role="tab" aria-selected="false" aria-controls="panel-theory" tabindex="-1">Теория музыки</button>
+        <nav class="tabs" aria-label="Основная навигация" data-i18n-aria="navigation" role="tablist">
+          <button class="tab is-active" id="tab-home" type="button" role="tab" aria-selected="true" aria-controls="panel-home" tabindex="0" data-i18n="home">Главная</button>
+          <button class="tab" id="tab-theory" type="button" role="tab" aria-selected="false" aria-controls="panel-theory" tabindex="-1" data-i18n="theory">Теория музыки</button>
         </nav>
 
-        <div class="window-controls" aria-label="Управление окном">
-          <button type="button" data-window-action="minimize" aria-label="Свернуть"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
-          <button type="button" data-window-action="maximize" aria-label="Развернуть"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx=".5" /></svg></button>
-          <button type="button" data-window-action="close" aria-label="Закрыть"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9m0-9-9 9" /></svg></button>
+        <div class="window-controls" aria-label="Управление окном" data-i18n-aria="windowControls">
+          <button type="button" data-window-action="minimize" aria-label="Свернуть" data-i18n-aria="minimize"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg></button>
+          <button type="button" data-window-action="maximize" aria-label="Развернуть" data-i18n-aria="maximize"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx=".5" /></svg></button>
+          <button type="button" data-window-action="close" aria-label="Закрыть" data-i18n-aria="close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9m0-9-9 9" /></svg></button>
         </div>
       </header>
+
+      <section class="settings-panel" id="settings-panel" role="dialog" aria-labelledby="settings-title" hidden>
+        <div class="settings-header">
+          <h2 id="settings-title" data-i18n="settings">Настройки</h2>
+          <button class="settings-close" id="settings-close" type="button" aria-label="Закрыть настройки" data-i18n-aria="closeSettings">×</button>
+        </div>
+        <label class="settings-label" for="language-select" data-i18n="language">Язык</label>
+        <select id="language-select" aria-label="Язык" data-i18n-aria="language">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+          <option value="uk">Українська</option>
+        </select>
+        <button class="settings-row" id="splash-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="showSplash">Показывать стартовую заставку</span><span class="settings-switch" aria-hidden="true"></span></button>
+        <button class="settings-row" id="effects-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="visualEffects">Визуальные эффекты</span><span class="settings-switch" aria-hidden="true"></span></button>
+      </section>
 
       <main class="content">
         <section class="page page-home is-active" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
           <div class="home-center">
-            <img class="hero-logo" src="../assets/sigil.png" alt="Эмблема Music Base" />
+            <img class="hero-logo" src="../assets/sigil.png" alt="Эмблема Music Base" data-i18n-alt="heroLogo" />
             <h1>Music Base</h1>
           </div>
         </section>
@@ -42,19 +59,18 @@
         </section>
       </main>
 
-      <span class="app-version" id="app-version" aria-label="Версия приложения"></span>
+      <span class="app-version" id="app-version" aria-label="Версия приложения" data-i18n-aria="appVersion"></span>
 
       <section class="update-panel" id="update-panel" role="dialog" aria-modal="false" aria-labelledby="update-title" hidden>
-        <button class="update-close" id="update-close" type="button" aria-label="Скрыть уведомление">×</button>
-        <p class="update-kicker" id="update-kicker">MUSIC BASE</p>
-        <h2 id="update-title">Доступно обновление</h2>
-        <div class="update-notes" id="update-notes"></div>
-        <div class="update-progress" id="update-progress" role="progressbar" aria-label="Загрузка обновления" aria-valuemin="0" aria-valuemax="100" hidden>
+        <button class="update-close" id="update-close" type="button" aria-label="Скрыть уведомление" data-i18n-aria="hideNotification">×</button>
+        <h2 id="update-title" data-i18n="updateAvailable">Доступно обновление</h2>
+        <p class="update-version" id="update-version"></p>
+        <div class="update-progress" id="update-progress" role="progressbar" aria-label="Загрузка обновления" data-i18n-aria="downloading" aria-valuemin="0" aria-valuemax="100" hidden>
           <div class="update-progress-track"><span id="update-progress-fill"></span></div>
-          <p class="update-progress-caption" id="update-progress-caption" aria-live="polite">Подготовка загрузки…</p>
+          <p class="update-progress-caption" id="update-progress-caption" aria-live="polite"></p>
         </div>
-        <p class="update-error" id="update-error" hidden>Не удалось скачать обновление. Проверьте подключение и попробуйте снова.</p>
-        <button class="update-button" id="update-button" type="button">Обновить</button>
+        <p class="update-error" id="update-error" data-i18n="downloadError" hidden>Не удалось скачать обновление.</p>
+        <button class="update-button" id="update-button" type="button" data-i18n="update">Обновить</button>
       </section>
     </div>
   </body>

@@ -1,13 +1,66 @@
 const tabs = [...document.querySelectorAll('[role="tab"]')];
 const pages = [...document.querySelectorAll('[role="tabpanel"]')];
 const TRANSITION_MS = 250;
+const baseLibrary = window.musicKnowledge;
+let language = new URLSearchParams(location.search).get('language') || 'ru';
+if (!window.musicI18n[language]) language = 'ru';
+let ui = window.musicI18n[language].ui;
+let library = baseLibrary;
+let libraryLoaded = false;
 let transitionTimer;
+
+function localizedLibrary(code) {
+  const translated = window.musicI18n[code].knowledge;
+  if (!translated) return baseLibrary;
+  return {
+    sources: Object.fromEntries(Object.entries(baseLibrary.sources).map(([key, source]) => [
+      key, { ...source, label: translated.sources[key] || source.label }
+    ])),
+    folders: baseLibrary.folders.map((folder) => {
+      const entry = translated.folders[folder.id];
+      return {
+        ...folder, title: entry.title, description: entry.description,
+        topics: folder.topics.map((topic) => ({ ...topic, ...entry.topics[topic.id] }))
+      };
+    })
+  };
+}
+
+function applyLanguage(code) {
+  if (!window.musicI18n[code]) return;
+  const folderId = currentFolder?.id;
+  const topicId = currentTopic?.id;
+  language = code;
+  ui = window.musicI18n[code].ui;
+  library = localizedLibrary(code);
+  document.documentElement.lang = code;
+  document.querySelectorAll('[data-i18n]').forEach((node) => {
+    node.textContent = ui[node.dataset.i18n];
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach((node) => {
+    node.setAttribute('aria-label', ui[node.dataset.i18nAria]);
+  });
+  document.querySelectorAll('[data-i18n-alt]').forEach((node) => {
+    node.alt = ui[node.dataset.i18nAlt];
+  });
+  if (libraryLoaded) {
+    if (folderId) {
+      const folder = library.folders.find((item) => item.id === folderId);
+      if (topicId) {
+        currentFolder = folder;
+        showTopic(folder.topics.find((item) => item.id === topicId));
+      } else showFolder(folder);
+    } else showLibrary();
+  }
+  if (currentUpdateStatus) renderUpdateStatus(currentUpdateStatus);
+}
 
 function selectTab(tab, moveFocus = false) {
   if (tab.getAttribute('aria-selected') === 'true') return;
 
   clearTimeout(transitionTimer);
   const nextPage = document.getElementById(tab.getAttribute('aria-controls'));
+  if (tab.id === 'tab-theory' && !libraryLoaded) showLibrary();
 
   tabs.forEach((item) => {
     const selected = item === tab;
@@ -47,7 +100,6 @@ document.querySelectorAll('[data-window-action]').forEach((button) => {
   });
 });
 
-const library = window.musicKnowledge;
 const knowledgeView = document.getElementById('knowledge-view');
 let currentFolder = null;
 let currentTopic = null;
@@ -75,10 +127,11 @@ function makeHeading(kicker, title, description) {
 }
 
 function showLibrary() {
+  libraryLoaded = true;
   currentFolder = null;
   currentTopic = null;
   const fragment = document.createDocumentFragment();
-  fragment.append(makeHeading('БАЗА ЗНАНИЙ', 'Теория музыки', 'От первых нот до собственного музыкального наброска.'));
+  fragment.append(makeHeading(ui.knowledgeBase, ui.theory, ui.libraryDescription));
 
   const list = makeElement('div', 'library-list');
   library.folders.forEach((folder, index) => {
@@ -92,7 +145,7 @@ function showLibrary() {
     main.append(makeElement('span', 'row-index', String(index + 1).padStart(2, '0')));
     main.append(makeElement('span', 'row-title', folder.title));
     main.append(makeElement('span', 'row-description', folder.description));
-    button.append(icon, main, makeElement('span', 'row-count', `${folder.topics.length} темы`), makeElement('span', 'row-arrow', '↗'));
+    button.append(icon, main, makeElement('span', 'row-count', `${folder.topics.length} ${ui.topicCount}`), makeElement('span', 'row-arrow', '↗'));
     list.append(button);
   });
 
@@ -105,8 +158,8 @@ function showFolder(folder) {
   currentFolder = folder;
   currentTopic = null;
   const fragment = document.createDocumentFragment();
-  fragment.append(makeBackButton('Все разделы', 'library'));
-  fragment.append(makeHeading('ТЕОРИЯ МУЗЫКИ', folder.title, folder.description));
+  fragment.append(makeBackButton(ui.allSections, 'library'));
+  fragment.append(makeHeading(ui.theory.toLocaleUpperCase(language), folder.title, folder.description));
 
   const list = makeElement('div', 'library-list topic-list');
   folder.topics.forEach((topic, index) => {
@@ -130,25 +183,25 @@ function showTopic(topic) {
   currentTopic = topic;
   const fragment = document.createDocumentFragment();
   fragment.append(makeBackButton(currentFolder.title, 'folder'));
-  fragment.append(makeHeading(currentFolder.title.toUpperCase(), topic.title, topic.explanation));
+  fragment.append(makeHeading(currentFolder.title.toLocaleUpperCase(language), topic.title, topic.explanation));
 
   const article = makeElement('article', 'knowledge-article');
   const concepts = makeElement('section', 'article-section');
-  concepts.append(makeElement('h2', '', 'Основные понятия'));
+  concepts.append(makeElement('h2', '', ui.concepts));
   const list = makeElement('ul', 'concept-list');
   topic.concepts.forEach((concept) => list.append(makeElement('li', '', concept)));
   concepts.append(list);
 
   const example = makeElement('section', 'article-section');
-  example.append(makeElement('h2', '', 'Пример'));
+  example.append(makeElement('h2', '', ui.example));
   example.append(makeElement('p', '', topic.example));
 
   const practice = makeElement('section', 'article-section');
-  practice.append(makeElement('h2', '', 'Применение в музыке'));
+  practice.append(makeElement('h2', '', ui.practice));
   practice.append(makeElement('p', '', topic.practice));
 
   const sources = makeElement('div', 'article-sources');
-  sources.append(makeElement('span', 'source-label', 'ИСТОЧНИКИ'));
+  sources.append(makeElement('span', 'source-label', ui.sources));
   topic.sources.forEach((reference) => {
     const source = library.sources[reference.id];
     const link = makeElement('a', 'source-link', source.label);
@@ -185,68 +238,128 @@ knowledgeView.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || document.getElementById('panel-theory').hidden) return;
+  if (event.key !== 'Escape') return;
+  if (!settingsPanel.hidden) {
+    closeSettings();
+    return;
+  }
+  if (document.getElementById('panel-theory').hidden) return;
   if (currentTopic) showFolder(currentFolder);
   else if (currentFolder) showLibrary();
 });
 
-showLibrary();
-
 const versionLabel = document.getElementById('app-version');
+const settingsTrigger = document.getElementById('settings-trigger');
+const settingsPanel = document.getElementById('settings-panel');
+const settingsClose = document.getElementById('settings-close');
+const languageSelect = document.getElementById('language-select');
+const splashToggle = document.getElementById('splash-toggle');
+const effectsToggle = document.getElementById('effects-toggle');
 const updatePanel = document.getElementById('update-panel');
-const updateKicker = document.getElementById('update-kicker');
 const updateTitle = document.getElementById('update-title');
-const updateNotes = document.getElementById('update-notes');
+const updateVersion = document.getElementById('update-version');
 const updateProgress = document.getElementById('update-progress');
 const updateProgressFill = document.getElementById('update-progress-fill');
 const updateProgressCaption = document.getElementById('update-progress-caption');
 const updateError = document.getElementById('update-error');
 const updateButton = document.getElementById('update-button');
 const updateClose = document.getElementById('update-close');
+let currentUpdateStatus = null;
+let updateDismissed = false;
 
-window.musicBase.getVersion().then((version) => {
-  versionLabel.textContent = `v${version}`;
-  updateKicker.textContent = `Music Base v${version}`;
+function closeSettings() {
+  settingsPanel.hidden = true;
+  settingsTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function renderPreferences(preferences) {
+  languageSelect.value = preferences.language;
+  splashToggle.setAttribute('aria-checked', String(preferences.showSplash));
+  effectsToggle.setAttribute('aria-checked', String(preferences.visualEffects));
+  document.documentElement.classList.toggle('effects-off', !preferences.visualEffects);
+  if (preferences.language !== language) applyLanguage(preferences.language);
+}
+
+settingsTrigger.addEventListener('click', () => {
+  settingsPanel.hidden = !settingsPanel.hidden;
+  settingsTrigger.setAttribute('aria-expanded', String(!settingsPanel.hidden));
 });
+settingsClose.addEventListener('click', closeSettings);
+languageSelect.addEventListener('change', async () => {
+  const preferences = await window.musicBase.setPreference('language', languageSelect.value);
+  if (preferences) renderPreferences(preferences);
+});
+for (const [button, key] of [[splashToggle, 'showSplash'], [effectsToggle, 'visualEffects']]) {
+  button.addEventListener('click', async () => {
+    const nextValue = button.getAttribute('aria-checked') !== 'true';
+    const preferences = await window.musicBase.setPreference(key, nextValue);
+    if (preferences) renderPreferences(preferences);
+  });
+}
 
-window.musicBase.onUpdateStatus((status) => {
+function renderUpdateStatus(status) {
+  updateTitle.textContent = ui.updateAvailable;
+  updateVersion.textContent = `${ui.newVersion} v${status.version}`;
+  updateError.textContent = ui.downloadError;
   if (status.state === 'available') {
-    updateTitle.textContent = `Доступна новая версия v${status.version}`;
-    updateNotes.textContent = status.notes || 'Описание изменений для этого выпуска не добавлено.';
     updateProgress.hidden = true;
     updateError.hidden = true;
-    updateButton.textContent = 'Обновить';
+    updateButton.textContent = ui.update;
     updateButton.disabled = false;
     updateClose.disabled = false;
-    updatePanel.hidden = false;
+    updatePanel.hidden = updateDismissed;
   } else if (status.state === 'downloading') {
     const percent = Math.max(0, Math.min(100, Number(status.percent) || 0));
     updateProgress.hidden = false;
     updateProgress.dataset.phase = 'downloading';
     updateProgress.setAttribute('aria-valuenow', String(percent));
     updateProgressFill.style.width = `${percent}%`;
-    updateProgressCaption.textContent = `Загрузка обновления · ${percent}%`;
-    updateButton.textContent = 'Загрузка…';
+    updateProgressCaption.textContent = `${ui.downloadProgress} · ${percent}%`;
+    updateButton.textContent = ui.loading;
     updateButton.disabled = true;
     updateClose.disabled = true;
+    updatePanel.hidden = false;
   } else if (status.state === 'installing') {
     updateProgress.hidden = false;
     updateProgress.dataset.phase = 'installing';
     updateProgress.setAttribute('aria-valuenow', '100');
     updateProgressFill.style.width = '100%';
-    updateProgressCaption.textContent = 'Установка и перезапуск…';
-    updateButton.textContent = 'Перезапуск…';
+    updateProgressCaption.textContent = ui.installing;
+    updateButton.textContent = ui.restarting;
     updateButton.disabled = true;
     updateClose.disabled = true;
+    updatePanel.hidden = false;
   } else if (status.state === 'error') {
     updateProgress.hidden = true;
     updateError.hidden = false;
-    updateButton.textContent = 'Повторить';
+    updateButton.textContent = ui.retry;
     updateButton.disabled = false;
     updateClose.disabled = false;
     updatePanel.hidden = false;
   }
+}
+
+document.addEventListener('copy', (event) => event.preventDefault());
+applyLanguage(language);
+document.documentElement.classList.toggle('effects-off', new URLSearchParams(location.search).get('effects') === 'off');
+window.musicBase.getPreferences().then((preferences) => {
+  if (preferences) renderPreferences(preferences);
+});
+
+window.musicBase.getVersion().then((version) => {
+  versionLabel.textContent = `v${version}`;
+});
+
+window.musicBase.onUpdateStatus((status) => {
+  if (status.state === 'available' && currentUpdateStatus?.version !== status.version) {
+    updateDismissed = false;
+  }
+  currentUpdateStatus = status;
+  renderUpdateStatus(status);
 });
 
 updateButton.addEventListener('click', () => window.musicBase.installUpdate());
-updateClose.addEventListener('click', () => { updatePanel.hidden = true; });
+updateClose.addEventListener('click', () => {
+  updateDismissed = true;
+  updatePanel.hidden = true;
+});

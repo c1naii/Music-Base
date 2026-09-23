@@ -9,9 +9,22 @@
   </head>
   <body class="splash-body">
     <div class="splash">
-      <img class="splash-logo" src="../assets/sigil.png" alt="Эмблема Music Base" />
-      <p>Cinailo Corporation Presents</p>
+      <img class="splash-logo" src="../assets/sigil.png" alt="Эмблема Music Base" id="splash-logo" />
+      <p id="splash-present">Cinailo Corporation Presents</p>
       <div class="splash-line" aria-hidden="true"><span></span></div>
     </div>
+    <script>
+      const language = new URLSearchParams(location.search).get('language');
+      const labels = {
+        ru: 'Cinailo Corporation представляет',
+        en: 'Cinailo Corporation Presents',
+        uk: 'Cinailo Corporation представляє'
+      };
+      if (labels[language]) {
+        document.documentElement.lang = language;
+        document.getElementById('splash-present').textContent = labels[language];
+        document.getElementById('splash-logo').alt = language === 'en' ? 'Music Base emblem' : language === 'uk' ? 'Емблема Music Base' : 'Эмблема Music Base';
+      }
+    </script>
   </body>
 </html>

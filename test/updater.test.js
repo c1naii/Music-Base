@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { createUpdater } = require('../src/updater');
 
-test('update is offered with release notes and installed only after selection', async () => {
+test('update is offered and installed only after selection', async () => {
   const engine = new EventEmitter();
   const messages = [];
   let checks = 0;
@@ -23,8 +23,8 @@ test('update is offered with release notes and installed only after selection', 
   await updater.check();
   assert.equal(checks, 1);
 
-  engine.emit('update-available', { version: '0.4.0', releaseNotes: '- Исправления\n- Новые материалы' });
-  assert.equal(messages.at(-1).notes, '- Исправления\n- Новые материалы');
+  engine.emit('update-available', { version: '0.5.0' });
+  assert.equal(messages.at(-1).version, '0.5.0');
   assert.equal(downloads, 0);
 
   await updater.install();
@@ -47,7 +47,7 @@ test('download failure allows another attempt', async () => {
   };
 
   const updater = createUpdater(engine, (message) => messages.push(message));
-  engine.emit('update-available', { version: '0.4.0' });
+  engine.emit('update-available', { version: '0.5.0' });
   await updater.install();
   assert.equal(messages.at(-1).state, 'error');
   await updater.install();

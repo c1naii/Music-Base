@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const { createUpdater } = require('./updater');
+const { loadPreferences, savePreferences } = require('./preferences');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -11,8 +12,10 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let mainWindow;
 let splashWindow;
 let updater;
+let preferences;
+let preferencesFile;
 
-function createWindow(options, page) {
+function createWindow(options, page, query) {
   const window = new BrowserWindow({
     backgroundColor: '#080808',
     icon: path.join(__dirname, '..', 'assets', 'sigil.png'),
@@ -28,8 +31,29 @@ function createWindow(options, page) {
     ...options
   });
 
-  window.loadFile(path.join(__dirname, page));
+  window.loadFile(path.join(__dirname, page), query ? { query } : undefined);
   return window;
+}
+
+function visibleBounds(bounds) {
+  if (!bounds) return { width: 1180, height: 760, center: true };
+  const area = screen.getDisplayMatching(bounds).workArea;
+  const width = Math.min(bounds.width, area.width);
+  const height = Math.min(bounds.height, area.height);
+  return {
+    width,
+    height,
+    x: Math.max(area.x, Math.min(bounds.x, area.x + area.width - width)),
+    y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - height))
+  };
+}
+
+function publicPreferences() {
+  return {
+    language: preferences.language,
+    showSplash: preferences.showSplash,
+    visualEffects: preferences.visualEffects
+  };
 }
 
 function fadeIn(window) {
@@ -51,12 +75,25 @@ function fadeIn(window) {
 
 function createApp() {
   mainWindow = createWindow({
-    width: 1180,
-    height: 760,
-    minWidth: 760,
-    minHeight: 520,
+    ...visibleBounds(preferences.bounds),
+    minWidth: 680,
+    minHeight: 480,
+    resizable: true,
+    movable: true,
+    thickFrame: true,
     title: 'Music Base'
-  }, 'index.html');
+  }, 'index.html', {
+    language: preferences.language,
+    effects: preferences.visualEffects ? 'on' : 'off'
+  });
+
+  if (preferences.maximized) mainWindow.maximize();
+
+  mainWindow.on('close', () => {
+    preferences.bounds = mainWindow.getNormalBounds();
+    preferences.maximized = mainWindow.isMaximized();
+    savePreferences(preferencesFile, preferences);
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
@@ -75,29 +112,46 @@ function createApp() {
     return { action: 'deny' };
   });
 
-  splashWindow = createWindow({
-    width: 620,
-    height: 400,
-    resizable: false,
-    movable: true,
-    center: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    title: 'Music Base'
-  }, 'splash.html');
+  let mainReady = false;
+  let splashDone = !preferences.showSplash;
+  const showMain = () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible() || !mainReady || !splashDone) return;
+    if (preferences.showSplash) fadeIn(mainWindow);
+    else mainWindow.show();
+  };
 
-  splashWindow.once('ready-to-show', () => {
-    splashWindow.show();
-    setTimeout(() => {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.close();
-      }
-      if (mainWindow && !mainWindow.isDestroyed()) fadeIn(mainWindow);
-    }, SPLASH_DURATION_MS);
+  mainWindow.once('ready-to-show', () => {
+    mainReady = true;
+    showMain();
   });
 
+  if (preferences.showSplash) {
+    splashWindow = createWindow({
+      width: 620,
+      height: 400,
+      resizable: false,
+      center: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      title: 'Music Base'
+    }, 'splash.html', { language: preferences.language });
+
+    splashWindow.once('ready-to-show', () => {
+      splashWindow.show();
+      setTimeout(() => {
+        if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+        splashDone = true;
+        showMain();
+      }, SPLASH_DURATION_MS);
+    });
+    splashWindow.on('closed', () => {
+      splashWindow = null;
+      splashDone = true;
+      showMain();
+    });
+  }
+
   mainWindow.on('closed', () => { mainWindow = null; });
-  splashWindow.on('closed', () => { splashWindow = null; });
 }
 
 ipcMain.on('window-control', (event, action) => {
@@ -114,12 +168,28 @@ ipcMain.on('window-control', (event, action) => {
 
 ipcMain.handle('app-version', () => app.getVersion());
 
+ipcMain.handle('get-preferences', (event) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
+  return publicPreferences();
+});
+
+ipcMain.handle('set-preference', (event, key, value) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
+  if (key === 'language' && ['ru', 'en', 'uk'].includes(value)) preferences.language = value;
+  else if (['showSplash', 'visualEffects'].includes(key) && typeof value === 'boolean') preferences[key] = value;
+  else return null;
+  savePreferences(preferencesFile, preferences);
+  return publicPreferences();
+});
+
 ipcMain.on('install-update', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window === mainWindow) updater?.install();
 });
 
 app.whenReady().then(() => {
+  preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
+  preferences = loadPreferences(preferencesFile);
   createApp();
   if (app.isPackaged && process.platform === 'win32') {
     updater = createUpdater(autoUpdater, (status) => {
@@ -127,7 +197,7 @@ app.whenReady().then(() => {
         mainWindow.webContents.send('update-status', status);
       }
     });
-    setTimeout(() => updater.check(), 5000);
+    setTimeout(() => updater.check(), 3500);
     setInterval(() => updater.check(), UPDATE_CHECK_INTERVAL_MS);
   }
   app.on('activate', () => {

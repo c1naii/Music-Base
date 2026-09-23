@@ -1,11 +1,3 @@
-function releaseNotesText(releaseNotes) {
-  if (typeof releaseNotes === 'string') return releaseNotes.trim();
-  if (Array.isArray(releaseNotes)) {
-    return releaseNotes.map((entry) => entry.note || '').filter(Boolean).join('\n\n').trim();
-  }
-  return '';
-}
-
 function createUpdater(autoUpdater, publish, schedule = setTimeout) {
   let state = 'idle';
   let checking = false;
@@ -19,7 +11,7 @@ function createUpdater(autoUpdater, publish, schedule = setTimeout) {
     if (state === 'downloading' || state === 'installing') return;
     state = 'available';
     availableVersion = info.version;
-    publish({ state, version: info.version, notes: releaseNotesText(info.releaseNotes) });
+    publish({ state, version: info.version });
   });
 
   autoUpdater.on('update-not-available', () => {
