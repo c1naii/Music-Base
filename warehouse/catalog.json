@@ -1,4 +1,17 @@
 {
   "schemaVersion": 1,
-  "items": []
+  "items": [
+    {
+      "id": "2bf5664f-0ff8-4f5d-be1f-b571e63d21cf",
+      "category": "drumkits",
+      "title": "С1 drum kit 2026",
+      "description": "набор качественных ударных для создания мощных битов. Идеально подходит для новичков и продюсеров, которые хотят быстро найти свой звук и улучшить свои треки.",
+      "fileName": "C1 DRUM KIT 2026.zip",
+      "fileUrl": "https://github.com/c1naii/Music-Base/releases/download/v0.6.7/warehouse-2bf5664f-0ff8-4f5d-be1f-b571e63d21cf-1790204093221-86101c69f0-file.zip",
+      "imageUrl": "https://github.com/c1naii/Music-Base/releases/download/v0.6.7/warehouse-2bf5664f-0ff8-4f5d-be1f-b571e63d21cf-1790204112919-af613f5032-cover.png",
+      "fileAssetId": 584715197,
+      "imageAssetId": 584715555,
+      "updatedAt": "2026-09-23T22:55:13.727Z"
+    }
+  ]
 }
