@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
+const fs = require('node:fs');
 const { createUpdater } = require('./updater');
 const { loadPreferences, savePreferences } = require('./preferences');
 const { createNotesStore } = require('./notes');
@@ -213,7 +214,10 @@ ipcMain.handle('warehouse-delete-item', async (event, id) => {
   return warehouseStore.deleteItem(id);
 });
 ipcMain.handle('warehouse-downloads', (event) => isMainWindow(event) ? warehouseStore.listDownloads() : null);
-ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id) : null);
+ipcMain.handle('warehouse-favorites', (event) => isMainWindow(event) ? warehouseStore.getFavorites() : []);
+ipcMain.handle('warehouse-toggle-favorite', (event, id) => isMainWindow(event) ? warehouseStore.toggleFavorite(id) : []);
+ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id,
+  (percent) => { if (!event.sender.isDestroyed()) event.sender.send('warehouse-download-progress', { id, percent }); }) : null);
 ipcMain.handle('warehouse-delete-download', (event, id) => isMainWindow(event) ? warehouseStore.deleteDownload(id) : null);
 ipcMain.handle('warehouse-open-download', async (event, id) => {
   if (!isMainWindow(event)) return false;
@@ -253,24 +257,20 @@ ipcMain.handle('reset-download-directory', (event) => {
   return publicPreferences();
 });
 
-ipcMain.handle('integrate-daw', async (event, daw) => {
+ipcMain.handle('integrate-daw', (event, daw) => {
   if (!isMainWindow(event) || !['flstudio', 'ableton'].includes(daw)) return null;
-  const title = preferences.language === 'en' ? `Select a folder already shown in ${daw === 'flstudio' ? 'FL Studio Browser' : 'Ableton Places'}` :
-    preferences.language === 'uk' ? `Виберіть папку, яка вже відображається в ${daw === 'flstudio' ? 'браузері FL Studio' : 'Ableton Places'}` :
-      `Выберите папку, которая уже отображается в ${daw === 'flstudio' ? 'браузере FL Studio' : 'Ableton Places'}`;
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title,
-    defaultPath: preferences.downloadDirectory || defaultDownloadsDirectory,
-    properties: ['openDirectory']
-  });
-  if (result.canceled || !result.filePaths[0]) return null;
-  const linkedFolder = warehouseStore.integrateWithDaw(result.filePaths[0]);
+  const documents = app.getPath('documents');
+  const candidates = daw === 'ableton'
+    ? [path.join(documents, 'Ableton', 'User Library')]
+    : [path.join(documents, 'Image-Line', 'FL Studio', 'Packs')];
+  const parent = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!parent) throw new Error('DAW library folder was not detected');
+  const linkedFolder = warehouseStore.integrateWithDaw(parent);
   preferences.dawIntegrationTargets = [...new Set([...preferences.dawIntegrationTargets, path.dirname(linkedFolder)])];
   preferences.downloadRoots = [...new Set([...preferences.downloadRoots, preferences.downloadDirectory || defaultDownloadsDirectory])];
   savePreferences(preferencesFile, preferences);
   return { daw, path: linkedFolder };
 });
-
 ipcMain.handle('get-preferences', (event) => {
   if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
   return publicPreferences();

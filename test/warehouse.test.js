@@ -58,7 +58,8 @@ test('ZIP downloads are extracted into their category and can be fully removed',
     tokenProvider: () => null
   });
 
-  const downloaded = await store.downloadItem(catalog.items[0].id);
+  const progress = [];
+  const downloaded = await store.downloadItem(catalog.items[0].id, (value) => progress.push(value));
   assert.equal(downloaded.length, 1);
   assert.equal(downloaded[0].fileName, 'Kit.zip');
   assert.equal(downloaded[0].isDirectory, true);
@@ -67,6 +68,13 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.equal(fs.existsSync(path.join(root, 'Music Base', 'DRUMKITS', 'Kit.zip')), false);
   assert.equal(store.getDragFile(downloaded[0].id), filePath);
   assert.equal(store.getDownloadPath(downloaded[0].id), path.dirname(filePath));
+  assert.equal(progress.at(-1), 100);
+
+  assert.equal((await store.downloadItem(catalog.items[0].id)).length, 1);
+  assert.equal(fs.readdirSync(path.join(root, 'Music Base', 'DRUMKITS')).length, 1);
+  assert.deepEqual(store.toggleFavorite(catalog.items[0].id), [catalog.items[0].id]);
+  assert.deepEqual(store.getFavorites(), [catalog.items[0].id]);
+  assert.deepEqual(store.toggleFavorite(catalog.items[0].id), []);
 
   assert.deepEqual(store.deleteDownload(downloaded[0].id), []);
   assert.equal(fs.existsSync(filePath), false);

@@ -3,8 +3,6 @@ const path = require('node:path');
 const https = require('node:https');
 const crypto = require('node:crypto');
 const { execFile, execFileSync } = require('node:child_process');
-const { Readable } = require('node:stream');
-const { pipeline } = require('node:stream/promises');
 const { promisify } = require('node:util');
 const extractZip = require('extract-zip');
 const sevenZip = require('7zip-bin');
@@ -142,6 +140,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   const cacheFile = path.join(dataDirectory, 'warehouse-catalog.json');
   const downloadsIndex = downloadsIndexPath || path.join(dataDirectory, 'downloads.json');
   let currentDownloadsDirectory = path.resolve(downloadsDirectory);
+  const favoritesPath = path.join(dataDirectory, 'warehouse-favorites.json');
+  const activeDownloads = new Set();
   const knownDownloadRoots = new Set([currentDownloadsDirectory, ...downloadRoots.map((item) => path.resolve(item))]);
   fs.mkdirSync(dataDirectory, { recursive: true });
 
@@ -425,7 +425,36 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return parseCatalog({ schemaVersion: 1, items });
   }
 
-  async function downloadItem(id) {
+  function getFavorites() {
+    try {
+      const ids = JSON.parse(fs.readFileSync(favoritesPath, 'utf8'));
+      return Array.isArray(ids) ? [...new Set(ids.filter((id) => typeof id === 'string'))] : [];
+    } catch { return []; }
+  }
+
+  function toggleFavorite(id) {
+    if (typeof id !== 'string' || !id) throw new Error('Invalid warehouse item');
+    const favorites = new Set(getFavorites());
+    if (favorites.has(id)) favorites.delete(id); else favorites.add(id);
+    const temporary = `${favoritesPath}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify([...favorites]), 'utf8');
+    fs.renameSync(temporary, favoritesPath);
+    return [...favorites];
+  }
+
+  async function downloadItem(id, onProgress = () => {}) {
+    if (activeDownloads.has(id)) throw new Error('Download already in progress');
+    activeDownloads.add(id);
+    try { return await performDownload(id, onProgress); }
+    finally { activeDownloads.delete(id); }
+  }
+
+  async function performDownload(id, onProgress) {
+    const prior = readDownloads().find((record) => record.itemId === id);
+    if (prior) {
+      try { if (fs.existsSync(downloadTarget(prior))) return listDownloads(); }
+      catch {}
+    }
     const item = (await getCatalog()).items.find((entry) => entry.id === id);
     if (!item) throw new Error('Warehouse item not found');
     const root = currentDownloadsDirectory;
@@ -437,15 +466,16 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     if (isArchive) {
       let folderName = stem || 'Archive';
       let destination = path.join(targetDirectory, folderName);
-      for (let suffix = 2; fs.existsSync(destination); suffix += 1) {
+      let archivePath = path.join(targetDirectory, `${folderName}${ext}`);
+      for (let suffix = 2; fs.existsSync(destination) || fs.existsSync(archivePath); suffix += 1) {
         folderName = `${stem || 'Archive'} (${suffix})`;
         destination = path.join(targetDirectory, folderName);
+        archivePath = path.join(targetDirectory, `${folderName}${ext}`);
       }
-      const archivePath = path.join(targetDirectory, `${folderName}${ext}`);
       const response = await fetchImpl(item.fileUrl, { redirect: 'follow' });
       if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
       try {
-        await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(archivePath, { flags: 'wx' }));
+        await streamDownload(response, archivePath, onProgress);
         fs.mkdirSync(destination, { recursive: false });
         await extractArchive(archivePath, destination);
         fs.unlinkSync(archivePath);
@@ -476,8 +506,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     }
     const response = await fetchImpl(item.fileUrl, { redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
-    const output = fs.createWriteStream(target, { flags: 'wx' });
-    try { await pipeline(Readable.fromWeb(response.body), output); }
+    try { await streamDownload(response, target, onProgress); }
     catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
@@ -489,6 +518,33 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     try { writeDownloads(records); }
     catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
     return listDownloads();
+  }
+
+  async function streamDownload(response, target, onProgress) {
+    const total = Number(response.headers.get('content-length')) || 0;
+    const reader = response.body.getReader();
+    const output = fs.createWriteStream(target, { flags: 'wx' });
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!output.write(Buffer.from(value))) await new Promise((resolve, reject) => {
+          output.once('drain', resolve); output.once('error', reject);
+        });
+        received += value.byteLength;
+        if (total > 0) onProgress(Math.min(99, Math.floor(received / total * 100)));
+      }
+      await new Promise((resolve, reject) => {
+        output.once('error', reject);
+        output.end(resolve);
+      });
+      onProgress(100);
+    } catch (error) {
+      output.destroy();
+      try { await reader.cancel(); } catch {}
+      throw error;
+    }
   }
 
   function listDownloads() {
@@ -561,7 +617,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
 
   addDownloadRoots(downloadRoots);
   migrateLegacyDownloads();
-  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin };
+  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin, getFavorites, toggleFavorite };
 }
 
 module.exports = { createWarehouseService, CATEGORIES, parseCatalog, validateCategory, cleanFileName };

@@ -71,7 +71,7 @@
         </section>
         <section class="page page-storage" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" hidden>
           <div class="warehouse-view" id="warehouse-view">
-            <header class="warehouse-header"><div><p class="library-kicker" data-i18n="warehouseLabel">ЛИЧНОЕ ХРАНИЛИЩЕ</p><h1 class="library-title" data-i18n="storage">Склад</h1></div><button class="warehouse-downloads" id="warehouse-downloads" type="button" data-i18n="downloads">Загрузки</button></header>
+            <header class="warehouse-header"><div><p class="library-kicker" data-i18n="warehouseLabel">ЛИЧНОЕ ХРАНИЛИЩЕ</p><h1 class="library-title" data-i18n="storage">Склад</h1></div><div class="warehouse-header-actions"><button class="warehouse-downloads" id="warehouse-favorites" type="button" data-i18n="favorites">���������</button><button class="warehouse-downloads" id="warehouse-downloads" type="button" data-i18n="downloads">Загрузки</button></div></header>
             <div class="warehouse-categories" id="warehouse-categories">
               <button class="warehouse-category" type="button" data-warehouse-category="drumkits"><span class="warehouse-category-mark" aria-hidden="true">01</span><span data-i18n="drumkits">ДРАМКИТЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
               <button class="warehouse-category" type="button" data-warehouse-category="plugins"><span class="warehouse-category-mark" aria-hidden="true">02</span><span data-i18n="plugins">ПЛАГИНЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
@@ -79,6 +79,7 @@
               <button class="warehouse-category" type="button" data-warehouse-category="presets"><span class="warehouse-category-mark" aria-hidden="true">04</span><span data-i18n="presets">ПРЕСЕТЫ</span><span class="row-arrow" aria-hidden="true">→</span></button>
             </div>
             <section class="warehouse-empty-view" id="warehouse-empty-view" hidden><button class="library-back" id="warehouse-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><h2 class="warehouse-empty-title" id="warehouse-empty-title"></h2><div class="warehouse-items" id="warehouse-items"></div></section>
+            <section class="warehouse-detail-view" id="warehouse-detail-view" hidden></section>
             <section class="warehouse-downloads-view" id="warehouse-downloads-view" hidden><button class="library-back" id="warehouse-downloads-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><h2 class="warehouse-empty-title" data-i18n="downloads">Загрузки</h2><p class="warehouse-empty-message" id="warehouse-downloads-empty" data-i18n="downloadsEmpty">Здесь пока нет загруженных файлов.</p><div class="warehouse-download-list" id="warehouse-downloads-list"></div></section>
           </div>
         </section>

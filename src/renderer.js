@@ -12,6 +12,7 @@ const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets'];
 const warehouseCategoryList = document.getElementById('warehouse-categories');
 const warehouseEmptyView = document.getElementById('warehouse-empty-view');
 const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
+const warehouseDetailView = document.getElementById('warehouse-detail-view');
 const warehouseEmptyTitle = document.getElementById('warehouse-empty-title');
 const warehouseItemsView = document.getElementById('warehouse-items');
 const warehouseDownloadsList = document.getElementById('warehouse-downloads-list');
@@ -35,6 +36,9 @@ let warehouseView = 'categories';
 let currentWarehouseCategory = null;
 let warehouseCatalog = { schemaVersion: 1, items: [] };
 let warehouseDownloads = [];
+let warehouseFavorites = [];
+let favoriteFilter = false;
+let downloadProgress = new Map();
 let adminSelectedId = null;
 let adminImagePath = null;
 let adminFilePath = null;
@@ -44,7 +48,9 @@ function renderWarehouse() {
   warehouseCategoryList.hidden = warehouseView !== 'categories';
   warehouseEmptyView.hidden = warehouseView !== 'category';
   warehouseDownloadsView.hidden = warehouseView !== 'downloads';
+  warehouseDetailView.hidden = warehouseView !== 'detail';
   if (currentWarehouseCategory) warehouseEmptyTitle.textContent = ui[currentWarehouseCategory];
+  else if (favoriteFilter) warehouseEmptyTitle.textContent = ui.favorites;
   renderWarehouseItems();
   renderWarehouseDownloads();
 }
@@ -52,7 +58,7 @@ function renderWarehouse() {
 function renderWarehouseItems() {
   warehouseItemsView.replaceChildren();
   if (warehouseView !== 'category') return;
-  const items = warehouseCatalog.items.filter((item) => item.category === currentWarehouseCategory);
+  const items = warehouseCatalog.items.filter((item) => favoriteFilter ? warehouseFavorites.includes(item.id) : item.category === currentWarehouseCategory);
   if (!items.length) {
     warehouseItemsView.classList.add('is-empty');
     const empty = makeElement('div', 'warehouse-empty-state');
@@ -63,48 +69,63 @@ function renderWarehouseItems() {
   warehouseItemsView.classList.remove('is-empty');
   for (const item of items) {
     const card = makeElement('article', 'warehouse-item-card');
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.addEventListener('click', () => showWarehouseItem(item.id));
+    card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showWarehouseItem(item.id); } });
+    const cover = makeElement('span', 'warehouse-cover');
     const image = makeElement('img', 'warehouse-item-image');
     image.src = item.imageUrl;
     image.alt = '';
     image.loading = 'lazy';
     image.addEventListener('error', () => { image.hidden = true; }, { once: true });
-    const body = makeElement('div', 'warehouse-item-body');
-    body.append(makeElement('h3', 'warehouse-item-title', item.title));
-    if (item.description) body.append(makeElement('p', 'warehouse-item-description', item.description));
-    const record = warehouseDownloads.find((entry) => entry.itemId === item.id);
-    const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
-    download.type = 'button';
-    if (record?.draggable) {
-      download.draggable = true;
-      download.title = ui.dragToDaw;
-      download.addEventListener('dragstart', (event) => {
-        event.preventDefault();
-        window.musicBase.startWarehouseDrag(record.id);
-      });
-    }
-    download.addEventListener('click', async () => {
-      if (record) { await window.musicBase.openWarehouseDownload(record.id); return; }
-      download.disabled = true;
-      download.textContent = ui.downloadStarted;
-      try {
-        warehouseDownloads = await window.musicBase.downloadWarehouseItem(item.id);
-        download.textContent = ui.downloadDone;
-        renderWarehouseItems();
-        renderWarehouseDownloads();
-      } catch {
-        download.textContent = ui.downloadFailed;
-      } finally {
-        setTimeout(() => { if (download.isConnected) { download.disabled = false; download.textContent = ui.downloadDone; } }, 2200);
-      }
-    });
-    const actions = makeElement('div', 'warehouse-item-actions');
-    actions.append(download);
-    if (record) actions.append(makeDownloadActions(record));
-    body.append(actions);
-    card.append(image, body);
+    const heart = makeElement('button', 'warehouse-favorite' + (warehouseFavorites.includes(item.id) ? ' is-favorite' : ''), warehouseFavorites.includes(item.id) ? '\u2665' : '\u2661');
+    heart.type = 'button'; heart.setAttribute('aria-label', ui.saveItem);
+    heart.setAttribute('aria-pressed', String(warehouseFavorites.includes(item.id)));
+    heart.addEventListener('click', async (event) => { event.stopPropagation(); warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(item.id); renderWarehouseItems(); });
+    cover.append(image, heart);
+    const title = makeElement('span', 'warehouse-item-title', item.title);
+    card.append(cover, title);
     warehouseItemsView.append(card);
   }
 }
+
+function showWarehouseItem(id) {
+  const item = warehouseCatalog.items.find((entry) => entry.id === id);
+  if (!item) return;
+  warehouseView = 'detail';
+  currentWarehouseCategory = item.category;
+  renderWarehouse();
+  warehouseDetailView.replaceChildren();
+  const back = makeElement('button', 'library-back', ui.allWarehouseSections);
+  back.type = 'button'; back.addEventListener('click', () => showWarehouseCategory(item.category));
+  const cover = makeElement('img', 'warehouse-detail-cover'); cover.src = item.imageUrl; cover.alt = '';
+  const title = makeElement('h2', 'warehouse-detail-title', item.title);
+  const description = makeElement('p', 'warehouse-detail-description', item.description || '');
+  const favorite = makeElement('button', 'warehouse-detail-favorite', warehouseFavorites.includes(id) ? '\u2665 ' + ui.saved : '\u2661 ' + ui.saveItem);
+  favorite.type = 'button';
+  favorite.addEventListener('click', async () => { warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(id); showWarehouseItem(id); });
+  const record = warehouseDownloads.find((entry) => entry.itemId === id);
+  const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
+  download.type = 'button'; download.disabled = Boolean(record);
+  const progress = makeElement('div', 'warehouse-progress'); progress.hidden = true;
+  progress.innerHTML = '<span></span><b></b>';
+  const fill = progress.querySelector('span'); const caption = progress.querySelector('b');
+  if (downloadProgress.has(id)) { progress.hidden = false; fill.style.width = `${downloadProgress.get(id)}%`; caption.textContent = `${downloadProgress.get(id)}%`; }
+  download.addEventListener('click', async () => {
+    download.disabled = true; progress.hidden = false; downloadProgress.set(id, 0); caption.textContent = '0%'; fill.style.width = '0%';
+    try { warehouseDownloads = await window.musicBase.downloadWarehouseItem(id); downloadProgress.delete(id); renderWarehouse(); showWarehouseItem(id); renderWarehouseDownloads(); }
+    catch { download.disabled = false; download.textContent = ui.downloadFailed; downloadProgress.delete(id); }
+  });
+  if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
+  if (record) { const open = makeElement('button', 'warehouse-item-download', ui.openFolder); open.type = 'button'; open.addEventListener('click', () => window.musicBase.openWarehouseDownload(record.id)); warehouseDetailView.append(back, cover, title, description, favorite, download, open); }
+  else warehouseDetailView.append(back, cover, title, description, favorite, download, progress);
+}
+
+window.musicBase.onWarehouseDownloadProgress(({ id, percent }) => {
+  downloadProgress.set(id, percent);
+  if (warehouseView === 'detail') { const bar = warehouseDetailView.querySelector('.warehouse-progress'); if (bar) { bar.hidden = false; bar.querySelector('span').style.width = `${percent}%`; bar.querySelector('b').textContent = `${percent}%`; } }
+});
 
 function renderWarehouseDownloads() {
   if (!warehouseDownloadsList) return;
@@ -157,6 +178,7 @@ function makeDownloadActions(record) {
 
 function showWarehouseHome() {
   warehouseView = 'categories';
+  favoriteFilter = false;
   currentWarehouseCategory = null;
   renderWarehouse();
 }
@@ -164,6 +186,7 @@ function showWarehouseHome() {
 function showWarehouseCategory(category) {
   if (!warehouseCategories.includes(category)) return;
   warehouseView = 'category';
+  favoriteFilter = false;
   currentWarehouseCategory = category;
   renderWarehouse();
 }
@@ -362,6 +385,7 @@ warehouseCategoryList.addEventListener('click', (event) => {
 });
 document.getElementById('warehouse-back').addEventListener('click', showWarehouseHome);
 document.getElementById('warehouse-downloads').addEventListener('click', showWarehouseDownloads);
+document.getElementById('warehouse-favorites').addEventListener('click', () => { warehouseView = 'category'; currentWarehouseCategory = null; favoriteFilter = true; renderWarehouse(); });
 document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
 warehouseAdminTrigger.addEventListener('click', () => {
   adminPinInput.value = '';
@@ -752,6 +776,12 @@ function rememberPlace(place) {
 
 async function openPlace(place) {
   if (!place) return;
+  if (place.type === 'warehouse-item') {
+    selectTab(document.getElementById('tab-storage'));
+    showWarehouseItem(place.itemId);
+    rememberPlace(place);
+    return;
+  }
   if (place.type === 'warehouse') {
     selectTab(document.getElementById('tab-storage'));
     showWarehouseCategory(place.category);
@@ -796,7 +826,7 @@ function searchItems() {
     items.push({ kind: 'folder', title: ui[category], detail: ui.storage, text: ui[category], place: { type: 'warehouse', category } });
   }
   for (const item of warehouseCatalog.items) {
-    items.push({ kind: 'topic', title: item.title, detail: ui[item.category], text: `${item.title} ${item.description}`, place: { type: 'warehouse', category: item.category } });
+    items.push({ kind: 'topic', title: item.title, detail: ui[item.category], text: `${item.title} ${item.description}`, place: { type: 'warehouse-item', itemId: item.id } });
   }
   for (const folder of library.folders) {
     items.push({ kind: 'folder', title: folder.title, detail: folder.description, text: folder.title + ' ' + folder.description, place: { type: 'folder', folderId: folder.id } });
@@ -976,6 +1006,7 @@ window.musicBase.getPreferences().then((preferences) => {
 window.musicBase.listNotes().then((items) => { notes = items || []; renderNotes(); renderSearch(); });
 refreshWarehouse();
 window.musicBase.getWarehouseDownloads().then((items) => { warehouseDownloads = items || []; renderWarehouseItems(); renderWarehouseDownloads(); });
+window.musicBase.getWarehouseFavorites().then((items) => { warehouseFavorites = items || []; renderWarehouseItems(); });
 window.musicBase.checkWarehouseAdmin().then((allowed) => { warehouseAdminTrigger.hidden = !allowed; });
 
 window.musicBase.getVersion().then((version) => {

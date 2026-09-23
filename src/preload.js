@@ -17,7 +17,12 @@ contextBridge.exposeInMainWorld('musicBase', {
   saveWarehouseItem: (item) => ipcRenderer.invoke('warehouse-save-item', item),
   deleteWarehouseItem: (id) => ipcRenderer.invoke('warehouse-delete-item', id),
   getWarehouseDownloads: () => ipcRenderer.invoke('warehouse-downloads'),
+  getWarehouseFavorites: () => ipcRenderer.invoke('warehouse-favorites'),
+  toggleWarehouseFavorite: (id) => ipcRenderer.invoke('warehouse-toggle-favorite', id),
   downloadWarehouseItem: (id) => ipcRenderer.invoke('warehouse-download-item', id),
+  onWarehouseDownloadProgress: (callback) => {
+    if (typeof callback === 'function') ipcRenderer.on('warehouse-download-progress', (_event, progress) => callback(progress));
+  },
   deleteWarehouseDownload: (id) => ipcRenderer.invoke('warehouse-delete-download', id),
   openWarehouseDownload: (id) => ipcRenderer.invoke('warehouse-open-download', id),
   startWarehouseDrag: (id) => ipcRenderer.send('warehouse-start-drag', id),
