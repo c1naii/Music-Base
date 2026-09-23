@@ -1,6 +1,7 @@
 window.musicI18n = {
   ru: {
     ui: {
+      storage: '\u0421\u043a\u043b\u0430\u0434',
       home: 'Главная', theory: 'Теория музыки', settings: 'Настройки', closeSettings: 'Закрыть настройки',
       language: 'Язык', showSplash: 'Показывать стартовую заставку', visualEffects: 'Визуальные эффекты',
       appVersion: 'Версия приложения', hideNotification: 'Скрыть уведомление',
@@ -22,6 +23,7 @@ window.musicI18n = {
   },
   en: {
     ui: {
+      storage: 'Storage',
       home: 'Home', theory: 'Music Theory', settings: 'Settings', closeSettings: 'Close settings',
       language: 'Language', showSplash: 'Show startup splash', visualEffects: 'Visual effects',
       appVersion: 'App version', hideNotification: 'Hide notification',
@@ -249,6 +251,7 @@ window.musicI18n = {
   },
   uk: {
     ui: {
+      storage: '\u0421\u043a\u043b\u0430\u0434',
       home: 'Головна', theory: 'Теорія музики', settings: 'Налаштування', closeSettings: 'Закрити налаштування',
       language: 'Мова', showSplash: 'Показувати стартову заставку', visualEffects: 'Візуальні ефекти',
       appVersion: 'Версія застосунку', hideNotification: 'Сховати сповіщення',

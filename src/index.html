@@ -13,15 +13,14 @@
   <body>
     <div class="app-shell">
       <header class="titlebar">
-        <div class="brand" aria-label="Music Base">
-          <img src="../assets/sigil.png" alt="" />
-          <span>MUSIC BASE</span>
+        <div class="brand">
+          <button class="brand-home" id="home-trigger" type="button" aria-label="Главная" data-i18n-aria="home"><img src="../assets/sigil.png" alt="" /><span>MUSIC BASE</span></button>
           <button class="settings-trigger" id="settings-trigger" type="button" aria-label="Настройки" aria-expanded="false" aria-controls="settings-panel" data-i18n-aria="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4l.6 2.2 1.7.7 2-.9 2.8 2.8-.9 2 .7 1.7L23 11v4l-2.1.5-.7 1.7.9 2-2.8 2.8-2-.9-1.7.7L14 24h-4l-.6-2.2-1.7-.7-2 .9-2.8-2.8.9-2-.7-1.7L1 15v-4l2.1-.5.7-1.7-.9-2L5.7 4l2 .9 1.7-.7L10 2Z" transform="translate(0 -1) scale(.92)"/><circle cx="12" cy="12" r="3.3"/></svg></button>
           <button class="notes-trigger" id="notes-trigger" type="button" aria-label="Заметки" data-i18n-aria="notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10l4 4V20.5H5zM15 3.5v4h4M8 12h8M8 16h6"/></svg></button>
         </div>
 
         <nav class="tabs" aria-label="Основная навигация" data-i18n-aria="navigation" role="tablist">
-          <button class="tab is-active" id="tab-home" type="button" role="tab" aria-selected="true" aria-controls="panel-home" tabindex="0" data-i18n="home">Главная</button>
+          <button class="tab" id="tab-storage" type="button" role="tab" aria-selected="false" aria-controls="panel-storage" tabindex="-1" data-i18n="storage">Склад</button>
           <button class="tab" id="tab-theory" type="button" role="tab" aria-selected="false" aria-controls="panel-theory" tabindex="-1" data-i18n="theory">Теория музыки</button>
         </nav>
 
@@ -48,10 +47,11 @@
         <div class="settings-divider"></div>
         <button class="settings-row" id="splash-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="showSplash">Показывать стартовую заставку</span><span class="settings-switch" aria-hidden="true"></span></button>
         <button class="settings-row" id="effects-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="visualEffects">Визуальные эффекты</span><span class="settings-switch" aria-hidden="true"></span></button>
+        <div class="settings-version"><span data-i18n="appVersion">Версия приложения</span><span id="app-version"></span></div>
       </section>
 
       <main class="content">
-        <section class="page page-home is-active" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
+        <section class="page page-home is-active" id="panel-home" role="tabpanel" aria-labelledby="home-trigger">
           <div class="home-center">
             <img class="hero-logo" src="../assets/sigil.png" alt="Эмблема Music Base" data-i18n-alt="heroLogo" />
             <h1>Music Base</h1>
@@ -62,10 +62,11 @@
         <section class="page page-theory" id="panel-theory" role="tabpanel" aria-labelledby="tab-theory" hidden>
           <div class="knowledge-view" id="knowledge-view" aria-live="polite"></div>
         </section>
+        <section class="page page-storage" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" hidden></section>
       </main>
 
       <section class="search-panel" id="search-panel" role="dialog" aria-label="Поиск" data-i18n-aria="search" hidden>
-        <div class="search-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search-input" type="search" autocomplete="off" spellcheck="false" aria-label="Поиск" data-i18n-aria="search" /><button id="search-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></div>
+        <div class="search-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search-input" type="text" autocomplete="off" spellcheck="false" aria-label="Поиск" data-i18n-aria="search" /><button id="search-close" type="button" aria-label="Закрыть" data-i18n-aria="close">×</button></div>
         <div class="search-results" id="search-results" aria-live="polite"></div>
       </section>
 
@@ -80,7 +81,6 @@
         </section>
       </div>
 
-      <span class="app-version" id="app-version" aria-label="Версия приложения" data-i18n-aria="appVersion"></span>
 
       <section class="update-panel" id="update-panel" role="dialog" aria-modal="false" aria-labelledby="update-title" hidden>
         <button class="update-close" id="update-close" type="button" aria-label="Скрыть уведомление" data-i18n-aria="hideNotification">×</button>

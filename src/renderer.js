@@ -57,21 +57,19 @@ function applyLanguage(code) {
   renderSearch();
 }
 
-function selectTab(tab, moveFocus = false) {
-  if (tab.getAttribute('aria-selected') === 'true') return;
-
+function showPage(pageId, activeTab = null) {
   clearTimeout(transitionTimer);
-  const nextPage = document.getElementById(tab.getAttribute('aria-controls'));
-  if (tab.id === 'tab-theory' && !libraryLoaded) showLibrary();
+  if (pageId !== 'panel-home' && !searchPanel.hidden) closeSearch();
+  searchTrigger.hidden = pageId !== 'panel-home';
+  const nextPage = document.getElementById(pageId);
 
   tabs.forEach((item) => {
-    const selected = item === tab;
+    const selected = item === activeTab;
     item.classList.toggle('is-active', selected);
     item.setAttribute('aria-selected', String(selected));
-    item.tabIndex = selected ? 0 : -1;
+    item.tabIndex = selected || (!activeTab && item.id === 'tab-storage') ? 0 : -1;
   });
 
-  if (moveFocus) tab.focus();
   pages.forEach((page) => page.classList.remove('is-active'));
   nextPage.hidden = false;
 
@@ -86,6 +84,13 @@ function selectTab(tab, moveFocus = false) {
   }, TRANSITION_MS);
 }
 
+function selectTab(tab, moveFocus = false) {
+  if (tab.getAttribute('aria-selected') === 'true') return;
+  if (tab.id === 'tab-theory' && !libraryLoaded) showLibrary();
+  showPage(tab.getAttribute('aria-controls'), tab);
+  if (moveFocus) tab.focus();
+}
+
 tabs.forEach((tab, index) => {
   tab.addEventListener('click', () => selectTab(tab));
   tab.addEventListener('keydown', (event) => {
@@ -95,6 +100,7 @@ tabs.forEach((tab, index) => {
     selectTab(tabs[(index + direction + tabs.length) % tabs.length], true);
   });
 });
+document.getElementById('home-trigger').addEventListener('click', () => showPage('panel-home'));
 
 document.querySelectorAll('[data-window-action]').forEach((button) => {
   button.addEventListener('click', () => {
@@ -295,6 +301,9 @@ settingsTrigger.addEventListener('click', () => {
   settingsTrigger.setAttribute('aria-expanded', String(!settingsPanel.hidden));
 });
 settingsClose.addEventListener('click', closeSettings);
+document.addEventListener('pointerdown', (event) => {
+  if (!settingsPanel.hidden && !settingsPanel.contains(event.target) && !settingsTrigger.contains(event.target)) closeSettings();
+});
 languageSelect.addEventListener('change', async () => {
   const preferences = await window.musicBase.setPreference('language', languageSelect.value);
   if (preferences) renderPreferences(preferences);
