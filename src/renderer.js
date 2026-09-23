@@ -408,6 +408,10 @@ function normalizeSearch(value) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/ё/g, 'е').trim();
 }
 
+function searchWords(value) {
+  return normalizeSearch(value).match(/[\p{L}\p{N}]+/gu) || [];
+}
+
 function searchItems() {
   const items = [];
   for (const folder of library.folders) {
@@ -424,12 +428,14 @@ function renderSearch() {
   const query = normalizeSearch(searchInput.value);
   searchResults.replaceChildren();
   if (!query) { searchResults.append(makeElement('p', 'search-message', ui.searchHint)); return; }
-  const terms = query.split(/\s+/).filter(Boolean);
+  const terms = searchWords(query);
+  if (!terms.length) { searchResults.append(makeElement('p', 'search-message', ui.searchEmpty)); return; }
   const matches = searchItems().map((item) => {
-    const title = normalizeSearch(item.title);
-    const all = normalizeSearch(item.text);
-    if (!terms.every((term) => all.includes(term))) return null;
-    const score = (title === query ? 100 : title.includes(query) ? 50 : 0) + terms.filter((term) => title.includes(term)).length * 10;
+    const titleWords = searchWords(item.title);
+    const contentWords = searchWords(item.text);
+    if (!terms.every((term) => contentWords.some((word) => word.startsWith(term)))) return null;
+    const score = (normalizeSearch(item.title).startsWith(query) ? 100 : 0) +
+      terms.filter((term) => titleWords.some((word) => word.startsWith(term))).length * 10;
     return { ...item, score };
   }).filter(Boolean).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 30);
   if (!matches.length) { searchResults.append(makeElement('p', 'search-message', ui.searchEmpty)); return; }

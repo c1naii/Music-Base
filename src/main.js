@@ -143,8 +143,6 @@ function createApp() {
       splashWindow.show();
       setTimeout(() => {
         if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
-        splashDone = true;
-        showMain();
       }, SPLASH_DURATION_MS);
     });
     splashWindow.on('closed', () => {
