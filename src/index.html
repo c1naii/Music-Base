@@ -48,6 +48,15 @@
         <div class="settings-divider"></div>
         <button class="settings-row" id="splash-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="showSplash">Показывать стартовую заставку</span><span class="settings-switch" aria-hidden="true"></span></button>
         <button class="settings-row" id="effects-toggle" type="button" role="switch" aria-checked="true"><span data-i18n="visualEffects">Визуальные эффекты</span><span class="settings-switch" aria-hidden="true"></span></button>
+        <div class="settings-divider"></div>
+        <section class="settings-downloads" aria-labelledby="download-path-label">
+          <label class="settings-label" id="download-path-label" data-i18n="downloadPath">Путь загрузки</label>
+          <div class="settings-path" id="download-path"></div>
+          <div class="settings-path-actions"><button class="settings-action" id="choose-download-path" type="button" data-i18n="changePath">Изменить</button><button class="settings-action" id="reset-download-path" type="button" data-i18n="defaultPath">По умолчанию</button></div>
+          <p class="settings-hint" data-i18n="dawIntegrationHint">Выберите папку, уже отображаемую в браузере DAW. В ней появится ссылка Music Base.</p>
+          <div class="settings-path-actions"><button class="settings-action" id="integrate-flstudio" type="button">FL Studio</button><button class="settings-action" id="integrate-ableton" type="button">Ableton Live</button></div>
+          <p class="settings-path-status" id="download-path-status" aria-live="polite"></p>
+        </section>
         <div class="settings-version"><span data-i18n="appVersion">Версия приложения</span><span id="app-version"></span></div>
       </section>
 

@@ -1,6 +1,6 @@
 {
   "name": "music-base",
-  "version": "0.6.0",
+  "version": "0.6.7",
   "private": true,
   "description": "Music Base desktop alpha by Cinailo Corporation",
   "author": "Cinailo Corporation",
@@ -15,7 +15,9 @@
     "publish:win": "electron-builder --win nsis --publish always"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "7zip-bin": "^5.2.0",
+    "electron-updater": "^6.8.9",
+    "extract-zip": "^2.0.1"
   },
   "devDependencies": {
     "electron": "^38.2.2",
@@ -39,6 +41,9 @@
       "assets/**/*",
       "warehouse/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/7zip-bin/**"
     ],
     "win": {
       "icon": "assets/icon.ico",

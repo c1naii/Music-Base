@@ -2,9 +2,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
 const crypto = require('node:crypto');
-const { execFileSync } = require('node:child_process');
+const { execFile, execFileSync } = require('node:child_process');
 const { Readable } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
+const { promisify } = require('node:util');
+const extractZip = require('extract-zip');
+const sevenZip = require('7zip-bin');
+
+const execFileAsync = promisify(execFile);
 
 const OWNER = 'c1naii';
 const REPOSITORY = 'Music-Base';
@@ -133,11 +138,12 @@ function requestUpload(url, token, filePath, contentType) {
   });
 }
 
-function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl = fetch, tokenProvider = getGitHubToken }) {
+function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIndexPath, legacyDownloadsDirectory = downloadsDirectory, downloadRoots = [], fetchImpl = fetch, tokenProvider = getGitHubToken }) {
   const cacheFile = path.join(dataDirectory, 'warehouse-catalog.json');
-  const downloadsIndex = path.join(downloadsDirectory, 'Data', 'downloads.json');
+  const downloadsIndex = downloadsIndexPath || path.join(dataDirectory, 'downloads.json');
+  let currentDownloadsDirectory = path.resolve(downloadsDirectory);
+  const knownDownloadRoots = new Set([currentDownloadsDirectory, ...downloadRoots.map((item) => path.resolve(item))]);
   fs.mkdirSync(dataDirectory, { recursive: true });
-  fs.mkdirSync(downloadsDirectory, { recursive: true });
 
   async function authorizeOwner() {
     const token = tokenProvider();
@@ -181,7 +187,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
     try {
       const records = JSON.parse(fs.readFileSync(downloadsIndex, 'utf8'));
       return Array.isArray(records) ? records.filter((record) => record && typeof record.id === 'string' &&
-        typeof record.itemId === 'string' && typeof record.fileName === 'string' &&
+        typeof record.itemId === 'string' && typeof record.fileName === 'string' && typeof record.root === 'string' &&
         Object.hasOwn(CATEGORIES, record.category) && typeof record.relativePath === 'string') : [];
     } catch { return []; }
   }
@@ -193,13 +199,109 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
     fs.renameSync(temporary, downloadsIndex);
   }
 
-  function categoryDirectory(category) {
-    const downloadsRoot = fs.realpathSync(downloadsDirectory);
+  function migrateLegacyDownloads() {
+    const legacyIndex = path.join(path.resolve(legacyDownloadsDirectory), 'Data', 'downloads.json');
+    if (path.resolve(legacyIndex) === path.resolve(downloadsIndex) || !fs.existsSync(legacyIndex)) return;
+    try {
+      const legacy = JSON.parse(fs.readFileSync(legacyIndex, 'utf8'));
+      if (!Array.isArray(legacy)) return;
+      const current = readDownloads();
+      const known = new Set(current.map((record) => record.id));
+      for (const record of legacy) {
+        if (!record || typeof record.id !== 'string' || known.has(record.id) || typeof record.itemId !== 'string' ||
+            typeof record.title !== 'string' || typeof record.fileName !== 'string' || typeof record.relativePath !== 'string' ||
+            !Object.hasOwn(CATEGORIES, record.category)) continue;
+        current.push({ ...record, root: path.resolve(legacyDownloadsDirectory), isDirectory: false });
+        known.add(record.id);
+      }
+      writeDownloads(current);
+    } catch {}
+  }
+
+  function categoryDirectory(category, root = currentDownloadsDirectory) {
+    const downloadsRootPath = path.resolve(root);
+    fs.mkdirSync(downloadsRootPath, { recursive: true });
+    const downloadsRoot = fs.realpathSync(downloadsRootPath);
     const directory = path.join(downloadsRoot, CATEGORIES[validateCategory(category)]);
     fs.mkdirSync(directory, { recursive: true });
     const realDirectory = fs.realpathSync(directory);
     if (!realDirectory.startsWith(`${downloadsRoot}${path.sep}`)) throw new Error('Invalid downloads directory');
     return realDirectory;
+  }
+
+  function setDownloadsDirectory(directory, integrationTargets = []) {
+    if (typeof directory !== 'string' || !path.isAbsolute(directory)) throw new Error('Invalid downloads directory');
+    const previous = currentDownloadsDirectory;
+    let previousReal = previous;
+    try { previousReal = fs.realpathSync(previous); } catch {}
+    currentDownloadsDirectory = path.resolve(directory);
+    knownDownloadRoots.add(currentDownloadsDirectory);
+    if (integrationTargets.length) fs.mkdirSync(currentDownloadsDirectory, { recursive: true });
+    const currentReal = integrationTargets.length ? fs.realpathSync(currentDownloadsDirectory) : currentDownloadsDirectory;
+    for (const parent of integrationTargets) {
+      if (typeof parent !== 'string' || !path.isAbsolute(parent) || !fs.existsSync(parent)) continue;
+      const link = path.join(fs.realpathSync(parent), 'Music Base');
+      if (fs.existsSync(link)) {
+        let target = null;
+        try { target = fs.realpathSync(link); } catch {}
+        if (target === currentReal) continue;
+        if (target !== previousReal) continue;
+        try { fs.rmdirSync(link); } catch { continue; }
+      }
+      if (!fs.existsSync(link)) {
+        try { fs.symlinkSync(currentReal, link, 'junction'); } catch {}
+      }
+    }
+    return currentDownloadsDirectory;
+  }
+
+  function addDownloadRoots(roots = []) {
+    for (const root of roots) {
+      if (typeof root === 'string' && path.isAbsolute(root)) knownDownloadRoots.add(path.resolve(root));
+    }
+  }
+
+  function downloadTarget(record) {
+    if (!knownDownloadRoots.has(path.resolve(record.root))) throw new Error('Unknown download directory');
+    const expectedRoot = categoryDirectory(record.category, record.root);
+    const target = path.resolve(fs.realpathSync(record.root), record.relativePath);
+    if (!target.startsWith(`${expectedRoot}${path.sep}`)) throw new Error('Invalid download path');
+    return target;
+  }
+
+  function findSevenZip() {
+    let candidate = sevenZip.path7za;
+    if (candidate.includes('app.asar')) candidate = candidate.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+    if (fs.existsSync(candidate)) return candidate;
+    const systemPaths = [
+      path.join(process.env.ProgramFiles || '', '7-Zip', '7z.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || '', '7-Zip', '7z.exe')
+    ];
+    return systemPaths.find((item) => item && fs.existsSync(item)) || candidate;
+  }
+
+  async function extractArchive(archivePath, destination) {
+    const extension = path.extname(archivePath).toLowerCase();
+    if (extension === '.zip') return extractZip(archivePath, { dir: destination });
+    if (extension === '.rar') {
+      const executable = findSevenZip();
+      if (!fs.existsSync(executable)) throw new Error('RAR extractor is unavailable');
+      await execFileAsync(executable, ['x', archivePath, `-o${destination}`, '-y', '-bd'], { windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 });
+      return;
+    }
+  }
+
+  function findDraggableFiles(directory) {
+    const matches = [];
+    const visit = (current) => {
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        const child = path.join(current, entry.name);
+        if (entry.isDirectory()) visit(child);
+        else if (entry.isFile() && /\.(mid|midi|fst|fxp|fxb|vstpreset|adv|adg)$/i.test(entry.name)) matches.push(child);
+      }
+    };
+    visit(directory);
+    return matches;
   }
 
   async function getRelease(token) {
@@ -326,10 +428,46 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
   async function downloadItem(id) {
     const item = (await getCatalog()).items.find((entry) => entry.id === id);
     if (!item) throw new Error('Warehouse item not found');
-    const targetDirectory = categoryDirectory(item.category);
+    const root = currentDownloadsDirectory;
+    const targetDirectory = categoryDirectory(item.category, root);
     const baseName = cleanFileName(item.fileName);
     const ext = path.extname(baseName);
     const stem = path.basename(baseName, ext);
+    const isArchive = ['.zip', '.rar'].includes(ext.toLowerCase());
+    if (isArchive) {
+      let folderName = stem || 'Archive';
+      let destination = path.join(targetDirectory, folderName);
+      for (let suffix = 2; fs.existsSync(destination); suffix += 1) {
+        folderName = `${stem || 'Archive'} (${suffix})`;
+        destination = path.join(targetDirectory, folderName);
+      }
+      const archivePath = path.join(targetDirectory, `${folderName}${ext}`);
+      const response = await fetchImpl(item.fileUrl, { redirect: 'follow' });
+      if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
+      try {
+        await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(archivePath, { flags: 'wx' }));
+        fs.mkdirSync(destination, { recursive: false });
+        await extractArchive(archivePath, destination);
+        fs.unlinkSync(archivePath);
+      } catch (error) {
+        try { fs.unlinkSync(archivePath); } catch {}
+        try { fs.rmSync(destination, { recursive: true, force: true }); } catch {}
+        if (error.message === 'RAR extractor is unavailable') throw error;
+        throw new Error(`Archive extraction failed: ${error.message}`);
+      }
+      const record = {
+        id: crypto.randomUUID(), itemId: item.id, title: item.title,
+        category: item.category, fileName: baseName, root,
+        relativePath: path.relative(root, destination), isDirectory: true
+      };
+      const draggableFiles = findDraggableFiles(destination);
+      if (draggableFiles.length === 1) record.dragRelativePath = path.relative(root, draggableFiles[0]);
+      const records = readDownloads();
+      records.push(record);
+      try { writeDownloads(records); }
+      catch (error) { try { fs.rmSync(destination, { recursive: true, force: true }); } catch {} throw error; }
+      return listDownloads();
+    }
     let fileName = baseName;
     let target = path.join(targetDirectory, fileName);
     for (let suffix = 2; fs.existsSync(target); suffix += 1) {
@@ -343,7 +481,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
     catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
-      category: item.category, fileName, relativePath: path.relative(downloadsDirectory, target)
+      category: item.category, fileName, root,
+      relativePath: path.relative(root, target), isDirectory: false
     };
     const records = readDownloads();
     records.push(record);
@@ -354,24 +493,63 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
 
   function listDownloads() {
     return readDownloads().filter((record) => {
-      try {
-        const expectedRoot = categoryDirectory(record.category);
-        const target = path.resolve(fs.realpathSync(downloadsDirectory), record.relativePath);
-        return target.startsWith(`${expectedRoot}${path.sep}`) && fs.existsSync(target);
-      } catch { return false; }
-    }).map(({ id, itemId, title, category, fileName }) => ({ id, itemId, title, category, fileName }));
+      try { return fs.existsSync(downloadTarget(record)); }
+      catch { return false; }
+    }).map((record) => ({
+      id: record.id, itemId: record.itemId, title: record.title, category: record.category,
+      fileName: record.fileName, isDirectory: record.isDirectory === true,
+      draggable: record.isDirectory ? typeof record.dragRelativePath === 'string' : record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)
+    }));
   }
 
   function deleteDownload(id) {
     const records = readDownloads();
     const record = records.find((item) => item.id === id);
     if (!record) throw new Error('Download not found');
-    const target = path.resolve(fs.realpathSync(downloadsDirectory), record.relativePath);
-    const expectedRoot = categoryDirectory(record.category);
-    if (!target.startsWith(`${expectedRoot}${path.sep}`)) throw new Error('Invalid download path');
-    if (fs.existsSync(target)) fs.unlinkSync(target);
+    const target = downloadTarget(record);
+    if (fs.existsSync(target)) record.isDirectory ? fs.rmSync(target, { recursive: true, force: true }) : fs.unlinkSync(target);
     writeDownloads(records.filter((item) => item.id !== id));
     return listDownloads();
+  }
+
+  function getDownloadPath(id) {
+    const record = readDownloads().find((item) => item.id === id);
+    if (!record) throw new Error('Download not found');
+    const target = downloadTarget(record);
+    return record.isDirectory ? target : path.dirname(target);
+  }
+
+  function getDragFile(id) {
+    const record = readDownloads().find((item) => item.id === id);
+    if (!record) return null;
+    const target = downloadTarget(record);
+    if (!record.isDirectory) {
+      return fs.statSync(target).isFile() && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)) ? target : null;
+    }
+    if (typeof record.dragRelativePath !== 'string') return null;
+    const dragPath = path.resolve(fs.realpathSync(record.root), record.dragRelativePath);
+    if (!dragPath.startsWith(`${target}${path.sep}`) || !fs.existsSync(dragPath) || !fs.statSync(dragPath).isFile()) return null;
+    return dragPath;
+  }
+
+  function integrateWithDaw(parentDirectory) {
+    if (typeof parentDirectory !== 'string' || !path.isAbsolute(parentDirectory) || !fs.statSync(parentDirectory).isDirectory()) {
+      throw new Error('Invalid DAW folder');
+    }
+    const source = path.resolve(currentDownloadsDirectory);
+    fs.mkdirSync(source, { recursive: true });
+    const realSource = fs.realpathSync(source);
+    const parent = fs.realpathSync(parentDirectory);
+    if (parent === realSource || parent.startsWith(`${realSource}${path.sep}`)) throw new Error('Choose a DAW folder outside the downloads directory');
+    const link = path.join(parent, 'Music Base');
+    if (fs.existsSync(link)) {
+      let linkedTo = null;
+      try { linkedTo = fs.realpathSync(link); } catch {}
+      if (linkedTo === realSource) return link;
+      throw new Error('A Music Base folder already exists in the selected DAW location');
+    }
+    fs.symlinkSync(realSource, link, 'junction');
+    return link;
   }
 
   function verifyPin(pin) {
@@ -381,7 +559,9 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, fetchImpl =
     return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
   }
 
-  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, verifyPin };
+  addDownloadRoots(downloadRoots);
+  migrateLegacyDownloads();
+  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin };
 }
 
 module.exports = { createWarehouseService, CATEGORIES, parseCatalog, validateCategory, cleanFileName };

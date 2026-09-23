@@ -7,7 +7,10 @@ const defaults = Object.freeze({
   visualEffects: true,
   bounds: null,
   maximized: false,
-  lastPlace: null
+  lastPlace: null,
+  downloadDirectory: null,
+  downloadRoots: [],
+  dawIntegrationTargets: []
 });
 
 function validBounds(value) {
@@ -39,7 +42,10 @@ function normalizePreferences(value = {}) {
     visualEffects: typeof value.visualEffects === 'boolean' ? value.visualEffects : defaults.visualEffects,
     bounds: validBounds(value.bounds),
     maximized: value.maximized === true,
-    lastPlace
+    lastPlace,
+    downloadDirectory: typeof value.downloadDirectory === 'string' && path.isAbsolute(value.downloadDirectory) ? path.normalize(value.downloadDirectory) : null,
+    downloadRoots: Array.isArray(value.downloadRoots) ? [...new Set(value.downloadRoots.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : [],
+    dawIntegrationTargets: Array.isArray(value.dawIntegrationTargets) ? [...new Set(value.dawIntegrationTargets.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : []
   };
 }
 

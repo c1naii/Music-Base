@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('musicBase', {
   getWarehouseDownloads: () => ipcRenderer.invoke('warehouse-downloads'),
   downloadWarehouseItem: (id) => ipcRenderer.invoke('warehouse-download-item', id),
   deleteWarehouseDownload: (id) => ipcRenderer.invoke('warehouse-delete-download', id),
+  openWarehouseDownload: (id) => ipcRenderer.invoke('warehouse-open-download', id),
+  startWarehouseDrag: (id) => ipcRenderer.send('warehouse-start-drag', id),
+  chooseDownloadDirectory: () => ipcRenderer.invoke('choose-download-directory'),
+  resetDownloadDirectory: () => ipcRenderer.invoke('reset-download-directory'),
+  integrateDaw: (daw) => ipcRenderer.invoke('integrate-daw', daw),
   onUpdateStatus: (callback) => {
     if (typeof callback !== 'function') return;
     ipcRenderer.on('update-status', (_event, status) => callback(status));

@@ -18,6 +18,7 @@ let preferences;
 let preferencesFile;
 let notesStore;
 let warehouseStore;
+let defaultDownloadsDirectory;
 let warehouseAdminUnlocked = false;
 
 function createWindow(options, page, query) {
@@ -58,7 +59,9 @@ function publicPreferences() {
     language: preferences.language,
     showSplash: preferences.showSplash,
     visualEffects: preferences.visualEffects,
-    lastPlace: preferences.lastPlace
+    lastPlace: preferences.lastPlace,
+    downloadDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
+    downloadDirectoryIsDefault: !preferences.downloadDirectory
   };
 }
 
@@ -212,6 +215,61 @@ ipcMain.handle('warehouse-delete-item', async (event, id) => {
 ipcMain.handle('warehouse-downloads', (event) => isMainWindow(event) ? warehouseStore.listDownloads() : null);
 ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id) : null);
 ipcMain.handle('warehouse-delete-download', (event, id) => isMainWindow(event) ? warehouseStore.deleteDownload(id) : null);
+ipcMain.handle('warehouse-open-download', async (event, id) => {
+  if (!isMainWindow(event)) return false;
+  const result = await shell.openPath(warehouseStore.getDownloadPath(id));
+  if (result) throw new Error(result);
+  return true;
+});
+ipcMain.on('warehouse-start-drag', (event, id) => {
+  if (!isMainWindow(event)) return;
+  try {
+    const file = warehouseStore.getDragFile(id);
+    if (file) event.sender.startDrag({ file, icon: path.join(__dirname, '..', 'assets', 'sigil.png') });
+  } catch {}
+});
+
+ipcMain.handle('choose-download-directory', async (event) => {
+  if (!isMainWindow(event)) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: preferences.language === 'en' ? 'Choose download folder' : preferences.language === 'uk' ? 'Виберіть папку завантаження' : 'Выберите папку загрузки',
+    defaultPath: preferences.downloadDirectory || defaultDownloadsDirectory,
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || !result.filePaths[0]) return publicPreferences();
+  preferences.downloadDirectory = path.resolve(result.filePaths[0]);
+  preferences.downloadRoots = [...new Set([...preferences.downloadRoots, defaultDownloadsDirectory, preferences.downloadDirectory])];
+  warehouseStore.setDownloadsDirectory(preferences.downloadDirectory, preferences.dawIntegrationTargets);
+  savePreferences(preferencesFile, preferences);
+  return publicPreferences();
+});
+
+ipcMain.handle('reset-download-directory', (event) => {
+  if (!isMainWindow(event)) return null;
+  preferences.downloadDirectory = null;
+  preferences.downloadRoots = [...new Set([...preferences.downloadRoots, defaultDownloadsDirectory])];
+  warehouseStore.setDownloadsDirectory(defaultDownloadsDirectory, preferences.dawIntegrationTargets);
+  savePreferences(preferencesFile, preferences);
+  return publicPreferences();
+});
+
+ipcMain.handle('integrate-daw', async (event, daw) => {
+  if (!isMainWindow(event) || !['flstudio', 'ableton'].includes(daw)) return null;
+  const title = preferences.language === 'en' ? `Select a folder already shown in ${daw === 'flstudio' ? 'FL Studio Browser' : 'Ableton Places'}` :
+    preferences.language === 'uk' ? `Виберіть папку, яка вже відображається в ${daw === 'flstudio' ? 'браузері FL Studio' : 'Ableton Places'}` :
+      `Выберите папку, которая уже отображается в ${daw === 'flstudio' ? 'браузере FL Studio' : 'Ableton Places'}`;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title,
+    defaultPath: preferences.downloadDirectory || defaultDownloadsDirectory,
+    properties: ['openDirectory']
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  const linkedFolder = warehouseStore.integrateWithDaw(result.filePaths[0]);
+  preferences.dawIntegrationTargets = [...new Set([...preferences.dawIntegrationTargets, path.dirname(linkedFolder)])];
+  preferences.downloadRoots = [...new Set([...preferences.downloadRoots, preferences.downloadDirectory || defaultDownloadsDirectory])];
+  savePreferences(preferencesFile, preferences);
+  return { daw, path: linkedFolder };
+});
 
 ipcMain.handle('get-preferences', (event) => {
   if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
@@ -253,9 +311,13 @@ app.whenReady().then(() => {
   preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
   preferences = loadPreferences(preferencesFile);
   notesStore = createNotesStore(path.join(app.getPath('appData'), 'Music Base', 'Data'));
+  defaultDownloadsDirectory = path.join(app.getPath('documents'), 'Music Base');
   warehouseStore = createWarehouseService({
     dataDirectory: path.join(app.getPath('userData'), 'Data'),
-    downloadsDirectory: path.join(app.getPath('documents'), 'Music Base')
+    downloadsDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
+    legacyDownloadsDirectory: defaultDownloadsDirectory,
+    downloadsIndexPath: path.join(app.getPath('userData'), 'Data', 'downloads.json'),
+    downloadRoots: [...preferences.downloadRoots, defaultDownloadsDirectory]
   });
   createApp();
   if (app.isPackaged && process.platform === 'win32') {

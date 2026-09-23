@@ -55,7 +55,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .admin-trigger svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 .admin-trigger[hidden] { display: none; }
 
-.settings-panel { position: absolute; top: 64px; left: 22px; z-index: 6; width: min(344px, calc(100% - 44px)); padding: 25px 26px 20px; border: 1px solid #3d3d3d; border-radius: 6px; background: #111; box-shadow: 0 18px 60px rgba(0, 0, 0, .55); animation: update-enter .25s ease-out both; }
+.settings-panel { position: absolute; top: 64px; left: 22px; z-index: 6; width: min(390px, calc(100% - 44px)); max-height: calc(100% - 78px); padding: 25px 26px 20px; overflow-y: auto; border: 1px solid #3d3d3d; border-radius: 6px; background: #111; box-shadow: 0 18px 60px rgba(0, 0, 0, .55); animation: update-enter .25s ease-out both; }
 .settings-panel[hidden] { display: none; }
 .settings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #292929; }
 .settings-header h2 { margin: 0; font-size: 15px; font-weight: 400; }
@@ -74,6 +74,13 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .settings-row[aria-checked="true"] .settings-switch { border-color: #d3d3d3; background: #cecece; }
 .settings-row[aria-checked="true"] .settings-switch::after { background: #161616; transform: translateX(14px); }
 .settings-version { display: flex; justify-content: space-between; margin-top: 17px; color: #696969; font-size: 10px; letter-spacing: .04em; }
+.settings-downloads { padding: 1px 0 3px; }
+.settings-path { margin: -1px 0 11px; padding: 10px 11px; overflow-wrap: anywhere; border: 1px solid #343434; border-radius: 3px; background: #151515; color: #d5d5d5; font-size: 11px; line-height: 1.45; }
+.settings-path-actions { display: flex; gap: 8px; margin: 8px 0 12px; }
+.settings-action { flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; overflow-wrap: anywhere; border: 1px solid #3b3b3b; border-radius: 3px; background: #181818; color: #c5c5c5; cursor: pointer; font: inherit; font-size: 11px; transition: color .2s, border-color .2s, background-color .2s; }
+.settings-action:hover { border-color: #777; background: #202020; color: #fff; }
+.settings-hint, .settings-path-status { margin: 11px 0; color: #858585; font-size: 10px; line-height: 1.55; }
+.settings-path-status { min-height: 15px; margin-bottom: 0; color: #aaa; overflow-wrap: anywhere; }
 
 .tabs { app-region: no-drag; -webkit-app-region: no-drag; display: flex; height: 100%; gap: 5px; }
 .tab {
@@ -228,7 +235,7 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 
 .page-theory { background: radial-gradient(ellipse at 50% 50%, #111 0%, #090909 68%); }
 .page-storage { background: #090909; }
-.warehouse-view { width: min(860px, calc(100% - 56px)); height: 100%; padding: 54px 0 52px; overflow-y: auto; }
+.warehouse-view { width: min(1080px, calc(100% - 80px)); height: 100%; min-height: 0; padding: 46px 0 48px; overflow-y: auto; scrollbar-color: #414141 transparent; scrollbar-width: thin; }
 .warehouse-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .warehouse-header .library-kicker { margin-bottom: 12px; }
 .warehouse-downloads { padding: 9px 12px; border: 1px solid #414141; border-radius: 3px; background: #111; color: #aaa; cursor: pointer; font: inherit; font-size: 13px; transition: color .2s, border-color .2s, background-color .2s; }
@@ -238,26 +245,39 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .warehouse-category:hover { background: #111; color: #fff; }
 .warehouse-category-mark { color: #666; font-size: 11px; letter-spacing: .08em; }
 .warehouse-category .row-arrow { justify-self: end; }
-.warehouse-empty-view, .warehouse-downloads-view { min-height: 100%; padding-top: 12px; }
+.warehouse-empty-view, .warehouse-downloads-view { min-height: 0; padding-top: 10px; }
 .warehouse-empty-title { margin: 0; font-size: 18px; font-weight: 400; letter-spacing: .08em; }
 .warehouse-empty-message { margin-top: 22px; color: #858585; font-size: 13px; }
 .warehouse-empty-view[hidden], .warehouse-downloads-view[hidden] { display: none; }
-.warehouse-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; margin-top: 24px; }
+.warehouse-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 18px; margin-top: 24px; }
+.warehouse-items.is-empty { min-height: min(430px, 54vh); align-items: center; justify-items: center; }
+.warehouse-empty-state { display: flex; flex-direction: column; align-items: center; gap: 17px; color: #838383; text-align: center; }
+.warehouse-empty-state::before { width: 31px; height: 21px; border: 1.4px solid #686868; border-radius: 3px; content: ""; opacity: .75; }
+.warehouse-empty-state .warehouse-empty-message { margin: 0; }
 .warehouse-item-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid #333; border-radius: 4px; background: #101010; }
 .warehouse-item-image { width: 100%; height: 160px; object-fit: cover; background: #171717; }
 .warehouse-item-body { display: flex; flex: 1; flex-direction: column; align-items: flex-start; padding: 15px; }
 .warehouse-item-title { margin: 0; font-size: 16px; font-weight: 400; }
 .warehouse-item-description { margin: 10px 0 18px; color: #999; font-size: 13px; line-height: 1.55; white-space: pre-wrap; }
-.warehouse-item-download { margin-top: auto; padding: 9px 15px; border: 1px solid #666; border-radius: 3px; background: #191919; color: #eee; cursor: pointer; font: inherit; font-size: 13px; }
+.warehouse-item-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+.warehouse-item-download { padding: 9px 15px; border: 1px solid #666; border-radius: 3px; background: #191919; color: #eee; cursor: pointer; font: inherit; font-size: 13px; }
 .warehouse-item-download:hover { border-color: #aaa; background: #222; }
 .warehouse-item-download:disabled { color: #999; cursor: default; }
+.warehouse-item-download[draggable="true"] { cursor: grab; }
+.warehouse-item-download[draggable="true"]:active { cursor: grabbing; }
 .warehouse-download-list { margin-top: 18px; }
 .warehouse-download-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 15px 0; border-bottom: 1px solid #292929; }
 .warehouse-download-details { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .warehouse-download-title { overflow: hidden; color: #ddd; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .warehouse-download-filename { overflow: hidden; color: #858585; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.warehouse-download-remove { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #4a3a3a; border-radius: 3px; background: #181313; color: #c99; cursor: pointer; font: inherit; font-size: 12px; }
-.warehouse-download-remove:hover { border-color: #8b5a5a; color: #e8b8b8; }
+.warehouse-file-actions { position: relative; flex: 0 0 auto; }
+.warehouse-file-more { display: grid; width: 34px; height: 32px; place-items: center; border: 1px solid #3c3c3c; border-radius: 3px; background: #151515; color: #bbb; cursor: pointer; font: inherit; font-size: 22px; line-height: 1; }
+.warehouse-file-more:hover { border-color: #777; color: #fff; }
+.warehouse-file-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 4; display: grid; min-width: 154px; padding: 5px; border: 1px solid #393939; border-radius: 4px; background: #151515; box-shadow: 0 10px 30px #0009; }
+.warehouse-file-menu[hidden] { display: none; }
+.warehouse-file-menu button { padding: 9px 10px; border: 0; background: transparent; color: #ccc; cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
+.warehouse-file-menu button:hover { background: #252525; color: #fff; }
+.warehouse-file-menu button.danger { color: #c88; }
 .knowledge-view { width: 100%; height: 100%; padding: 62px max(36px, calc((100vw - 900px) / 2)) 80px; overflow-y: auto; scrollbar-color: #414141 transparent; scrollbar-width: thin; }
 .library-heading { margin-bottom: 45px; }
 .library-kicker { margin: 0 0 18px; color: #909090; font-size: 11px; letter-spacing: .32em; }

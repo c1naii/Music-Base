@@ -54,9 +54,13 @@ function renderWarehouseItems() {
   if (warehouseView !== 'category') return;
   const items = warehouseCatalog.items.filter((item) => item.category === currentWarehouseCategory);
   if (!items.length) {
-    warehouseItemsView.append(makeElement('p', 'warehouse-empty-message', ui.catalogEmpty));
+    warehouseItemsView.classList.add('is-empty');
+    const empty = makeElement('div', 'warehouse-empty-state');
+    empty.append(makeElement('p', 'warehouse-empty-message', ui.catalogEmpty));
+    warehouseItemsView.append(empty);
     return;
   }
+  warehouseItemsView.classList.remove('is-empty');
   for (const item of items) {
     const card = makeElement('article', 'warehouse-item-card');
     const image = makeElement('img', 'warehouse-item-image');
@@ -67,22 +71,36 @@ function renderWarehouseItems() {
     const body = makeElement('div', 'warehouse-item-body');
     body.append(makeElement('h3', 'warehouse-item-title', item.title));
     if (item.description) body.append(makeElement('p', 'warehouse-item-description', item.description));
-    const download = makeElement('button', 'warehouse-item-download', ui.downloadItem);
+    const record = warehouseDownloads.find((entry) => entry.itemId === item.id);
+    const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
     download.type = 'button';
+    if (record?.draggable) {
+      download.draggable = true;
+      download.title = ui.dragToDaw;
+      download.addEventListener('dragstart', (event) => {
+        event.preventDefault();
+        window.musicBase.startWarehouseDrag(record.id);
+      });
+    }
     download.addEventListener('click', async () => {
+      if (record) { await window.musicBase.openWarehouseDownload(record.id); return; }
       download.disabled = true;
       download.textContent = ui.downloadStarted;
       try {
         warehouseDownloads = await window.musicBase.downloadWarehouseItem(item.id);
         download.textContent = ui.downloadDone;
+        renderWarehouseItems();
         renderWarehouseDownloads();
       } catch {
         download.textContent = ui.downloadFailed;
       } finally {
-        setTimeout(() => { if (download.isConnected) { download.disabled = false; download.textContent = ui.downloadItem; } }, 2200);
+        setTimeout(() => { if (download.isConnected) { download.disabled = false; download.textContent = ui.downloadDone; } }, 2200);
       }
     });
-    body.append(download);
+    const actions = makeElement('div', 'warehouse-item-actions');
+    actions.append(download);
+    if (record) actions.append(makeDownloadActions(record));
+    body.append(actions);
     card.append(image, body);
     warehouseItemsView.append(card);
   }
@@ -98,18 +116,43 @@ function renderWarehouseDownloads() {
     const details = makeElement('div', 'warehouse-download-details');
     details.append(makeElement('span', 'warehouse-download-title', file.title));
     details.append(makeElement('span', 'warehouse-download-filename', `${ui[file.category]} · ${file.fileName}`));
-    const remove = makeElement('button', 'warehouse-download-remove', ui.removeDownload);
-    remove.type = 'button';
-    remove.addEventListener('click', async () => {
-      remove.disabled = true;
-      try {
-        warehouseDownloads = await window.musicBase.deleteWarehouseDownload(file.id);
-        renderWarehouseDownloads();
-      } catch { remove.disabled = false; }
-    });
-    row.append(details, remove);
+    row.append(details, makeDownloadActions(file));
     warehouseDownloadsList.append(row);
   }
+}
+
+function makeDownloadActions(record) {
+  const actions = makeElement('div', 'warehouse-file-actions');
+  const more = makeElement('button', 'warehouse-file-more', '⋯');
+  more.type = 'button';
+  more.setAttribute('aria-label', ui.moreActions);
+  more.title = ui.moreActions;
+  const menu = makeElement('div', 'warehouse-file-menu');
+  menu.hidden = true;
+  const open = makeElement('button', '', ui.openFolder);
+  open.type = 'button';
+  open.addEventListener('click', async () => {
+    try { await window.musicBase.openWarehouseDownload(record.id); }
+    finally { menu.hidden = true; }
+  });
+  const remove = makeElement('button', 'danger', ui.removeDownload);
+  remove.type = 'button';
+  remove.addEventListener('click', async () => {
+    remove.disabled = true;
+    try {
+      warehouseDownloads = await window.musicBase.deleteWarehouseDownload(record.id);
+      renderWarehouseItems();
+      renderWarehouseDownloads();
+    } catch { remove.disabled = false; }
+  });
+  menu.append(open, remove);
+  more.addEventListener('click', (event) => {
+    event.stopPropagation();
+    document.querySelectorAll('.warehouse-file-menu').forEach((other) => { if (other !== menu) other.hidden = true; });
+    menu.hidden = !menu.hidden;
+  });
+  actions.append(more, menu);
+  return actions;
 }
 
 function showWarehouseHome() {
@@ -564,6 +607,8 @@ const versionLabel = document.getElementById('app-version');
 const settingsTrigger = document.getElementById('settings-trigger');
 const settingsPanel = document.getElementById('settings-panel');
 const settingsClose = document.getElementById('settings-close');
+const downloadPathLabel = document.getElementById('download-path');
+const downloadPathStatus = document.getElementById('download-path-status');
 const languageSelect = document.getElementById('language-select');
 const splashToggle = document.getElementById('splash-toggle');
 const effectsToggle = document.getElementById('effects-toggle');
@@ -590,6 +635,9 @@ function renderPreferences(preferences) {
   effectsToggle.setAttribute('aria-checked', String(preferences.visualEffects));
   document.documentElement.classList.toggle('effects-off', !preferences.visualEffects);
   if (preferences.language !== language) applyLanguage(preferences.language);
+  if (preferences.downloadDirectory) {
+    downloadPathLabel.textContent = `${preferences.downloadDirectory}${preferences.downloadDirectoryIsDefault ? ` · ${ui.defaultBadge}` : ''}`;
+  }
 }
 
 settingsTrigger.addEventListener('click', () => {
@@ -609,6 +657,26 @@ for (const [button, key] of [[splashToggle, 'showSplash'], [effectsToggle, 'visu
     const nextValue = button.getAttribute('aria-checked') !== 'true';
     const preferences = await window.musicBase.setPreference(key, nextValue);
     if (preferences) renderPreferences(preferences);
+  });
+}
+document.getElementById('choose-download-path').addEventListener('click', async () => {
+  try {
+    const preferences = await window.musicBase.chooseDownloadDirectory();
+    if (preferences) renderPreferences(preferences);
+  } catch { downloadPathStatus.textContent = ui.downloadPathError; }
+});
+document.getElementById('reset-download-path').addEventListener('click', async () => {
+  try {
+    const preferences = await window.musicBase.resetDownloadDirectory();
+    if (preferences) { downloadPathStatus.textContent = ui.defaultPathSet; renderPreferences(preferences); }
+  } catch { downloadPathStatus.textContent = ui.downloadPathError; }
+});
+for (const [buttonId, daw] of [['integrate-flstudio', 'flstudio'], ['integrate-ableton', 'ableton']]) {
+  document.getElementById(buttonId).addEventListener('click', async () => {
+    try {
+      const result = await window.musicBase.integrateDaw(daw);
+      if (result) downloadPathStatus.textContent = `${ui.dawIntegrated}: ${result.path}`;
+    } catch { downloadPathStatus.textContent = ui.dawIntegrationError; }
   });
 }
 
@@ -907,7 +975,7 @@ window.musicBase.getPreferences().then((preferences) => {
 });
 window.musicBase.listNotes().then((items) => { notes = items || []; renderNotes(); renderSearch(); });
 refreshWarehouse();
-window.musicBase.getWarehouseDownloads().then((items) => { warehouseDownloads = items || []; renderWarehouseDownloads(); });
+window.musicBase.getWarehouseDownloads().then((items) => { warehouseDownloads = items || []; renderWarehouseItems(); renderWarehouseDownloads(); });
 window.musicBase.checkWarehouseAdmin().then((allowed) => { warehouseAdminTrigger.hidden = !allowed; });
 
 window.musicBase.getVersion().then((version) => {
