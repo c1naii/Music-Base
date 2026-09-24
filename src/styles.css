@@ -430,6 +430,15 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .publication-date-row input { min-width: 0; flex: 1; color-scheme: dark; }
 .publication-date-row button { flex: 0 0 auto; padding: 9px 10px; border: 1px solid #414141; border-radius: 3px; background: #171717; color: #bbb; cursor: pointer; font: inherit; font-size: 11px; }
 .publication-date-row button:hover { border-color: #777; color: #eee; }
+.settings-backup { display: grid; gap: 8px; }
+.settings-backup .settings-hint { margin: 0; }
+.settings-backup .settings-path-status { overflow-wrap: anywhere; }
+.settings-backup button:disabled { opacity: .55; cursor: default; }
+.warehouse-item-info { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 14px 13px; color: #888; font-size: 10px; }
+.warehouse-detail-view > .warehouse-item-info { padding: 0; margin: 2px 0 14px; }
+.warehouse-download-details .warehouse-item-info { padding: 0; }
+.warehouse-file-size { color: #929292; }
+.warehouse-daw-chip { padding: 3px 6px; border: 1px solid #343434; border-radius: 3px; color: #aaa; font-size: 10px; }
 
 .warehouse-empty-view { display: flex; flex-direction: column; min-height: calc(100% - 10px); }
 .warehouse-items.is-empty { flex: 1; }

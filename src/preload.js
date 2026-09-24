@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('musicBase', {
   startWarehouseDrag: (id) => ipcRenderer.send('warehouse-start-drag', id),
   chooseDownloadDirectory: () => ipcRenderer.invoke('choose-download-directory'),
   resetDownloadDirectory: () => ipcRenderer.invoke('reset-download-directory'),
-  integrateDaw: (daw) => ipcRenderer.invoke('integrate-daw', daw),
+  createBackup: () => ipcRenderer.invoke('create-backup'),
   onUpdateStatus: (callback) => {
     if (typeof callback !== 'function') return;
     ipcRenderer.on('update-status', (_event, status) => callback(status));

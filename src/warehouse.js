@@ -28,6 +28,7 @@ const LIBRARY_FOLDERS = Object.freeze({
   banks: 'Banks', samples: 'Samples', midi: 'MIDI'
 });
 const GENRES = Object.freeze(['pop', 'hip-hop', 'rock', 'electronic', 'rnb', 'funk', 'phonk', 'brazilian-phonk', 'ambient', 'jazz']);
+const SUPPORTED_DAWS = Object.freeze(['flstudio', 'ableton']);
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
@@ -66,8 +67,9 @@ function safePublicItem(item) {
   try {
     const fileUrl = new URL(item.fileUrl);
     const imageUrl = new URL(item.imageUrl);
-    if (fileUrl.protocol !== 'https:' || fileUrl.hostname !== 'github.com' ||
-        imageUrl.protocol !== 'https:' || imageUrl.hostname !== 'github.com') return null;
+    const isReleaseAsset = (url) => url.protocol === 'https:' && url.hostname === 'github.com' &&
+      !url.username && !url.password && !url.port && url.pathname.startsWith(`/${OWNER}/${REPOSITORY}/releases/download/`);
+    if (!isReleaseAsset(fileUrl) || !isReleaseAsset(imageUrl)) return null;
     return {
       id: item.id,
       category: item.category,
@@ -80,7 +82,9 @@ function safePublicItem(item) {
       ...(Number.isInteger(item.imageAssetId) ? { imageAssetId: item.imageAssetId } : {}),
       updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : '',
       publishedAt: isDateOnly(item.publishedAt) ? item.publishedAt : (isDateOnly(item.createdAt) ? item.createdAt : (typeof item.updatedAt === 'string' && isDateOnly(item.updatedAt.slice(0, 10)) ? item.updatedAt.slice(0, 10) : '')),
-      genres: Array.isArray(item.genres) ? [...new Set(item.genres.filter((genre) => GENRES.includes(genre)))] : []
+      genres: Array.isArray(item.genres) ? [...new Set(item.genres.filter((genre) => GENRES.includes(genre)))] : [],
+      fileSize: Number.isSafeInteger(item.fileSize) && item.fileSize > 0 ? item.fileSize : null,
+      supportedDaws: Array.isArray(item.supportedDaws) ? [...new Set(item.supportedDaws.filter((daw) => SUPPORTED_DAWS.includes(daw)))] : []
     };
   } catch { return null; }
 }
@@ -152,7 +156,7 @@ function requestUpload(url, token, filePath, contentType) {
   });
 }
 
-function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIndexPath, legacyDownloadsDirectory = downloadsDirectory, downloadRoots = [], fetchImpl = fetch, tokenProvider = getGitHubToken }) {
+function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIndexPath, legacyDownloadsDirectory = downloadsDirectory, downloadRoots = [], fetchImpl = fetch, tokenProvider = getGitHubToken, validateArchive = validateArchiveFile, validateImage = validateImageFile }) {
   const cacheFile = path.join(dataDirectory, 'warehouse-catalog.json');
   const downloadsIndex = downloadsIndexPath || path.join(dataDirectory, 'downloads.json');
   let currentDownloadsDirectory = path.resolve(downloadsDirectory);
@@ -275,30 +279,11 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     }
   }
 
-  function setDownloadsDirectory(directory, integrationTargets = []) {
+  function setDownloadsDirectory(directory) {
     if (typeof directory !== 'string' || !path.isAbsolute(directory)) throw new Error('Invalid downloads directory');
-    const previous = currentDownloadsDirectory;
-    let previousReal = previous;
-    try { previousReal = fs.realpathSync(previous); } catch {}
     currentDownloadsDirectory = path.resolve(directory);
     knownDownloadRoots.add(currentDownloadsDirectory);
     ensureLibraryStructure(currentDownloadsDirectory);
-    if (integrationTargets.length) fs.mkdirSync(currentDownloadsDirectory, { recursive: true });
-    const currentReal = integrationTargets.length ? fs.realpathSync(currentDownloadsDirectory) : currentDownloadsDirectory;
-    for (const parent of integrationTargets) {
-      if (typeof parent !== 'string' || !path.isAbsolute(parent) || !fs.existsSync(parent)) continue;
-      const link = path.join(fs.realpathSync(parent), 'Music Base');
-      if (fs.existsSync(link)) {
-        let target = null;
-        try { target = fs.realpathSync(link); } catch {}
-        if (target === currentReal) continue;
-        if (target !== previousReal) continue;
-        try { fs.rmdirSync(link); } catch { continue; }
-      }
-      if (!fs.existsSync(link)) {
-        try { fs.symlinkSync(currentReal, link, 'junction'); } catch {}
-      }
-    }
     return currentDownloadsDirectory;
   }
 
@@ -380,6 +365,13 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
 
   async function uploadFiles(token, files, itemId) {
     if (!files.length) return [];
+    for (const file of files) {
+      const stat = fs.statSync(file.path);
+      if (!stat.isFile() || stat.size <= 0 || stat.size > (file.image ? MAX_IMAGE_SIZE : MAX_FILE_SIZE)) {
+        throw new Error(file.image ? 'Image must be at most 20 MB' : 'File must be at most 2 GB');
+      }
+      if (file.image) validateImage(file.path);
+    }
     const release = await getRelease(token);
     const uploadUrl = release.upload_url.replace(/\{\?.*$/, '');
     const uploaded = [];
@@ -395,7 +387,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
         const uploadName = `warehouse-${itemId}-${Date.now()}-${suffix}-${file.image ? 'cover' : 'file'}${ext}`;
         const asset = await requestUpload(`${uploadUrl}?name=${encodeURIComponent(uploadName)}`, token, file.path,
           file.image ? `image/${ext === '.jpg' ? 'jpeg' : ext.slice(1)}` : 'application/octet-stream');
-        uploaded.push({ assetId: asset.id, url: asset.browser_download_url, name: file.name, image: file.image });
+        uploaded.push({ assetId: asset.id, url: asset.browser_download_url, name: file.name, image: file.image, size: stat.size });
       }
       return uploaded;
     } catch (error) {
@@ -414,6 +406,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const requestedDate = input?.publishedAt;
     if (requestedDate !== undefined && requestedDate !== '' && !isDateOnly(requestedDate)) throw new Error('Invalid publication date');
     if (input?.genres !== undefined && (!Array.isArray(input.genres) || input.genres.some((genre) => !GENRES.includes(genre)))) throw new Error('Invalid material genres');
+    if (input?.supportedDaws !== undefined && (!Array.isArray(input.supportedDaws) || input.supportedDaws.some((daw) => !SUPPORTED_DAWS.includes(daw)))) throw new Error('Invalid DAW compatibility');
     const id = typeof input?.id === 'string' && /^[a-f0-9-]{36}$/i.test(input.id) ? input.id : crypto.randomUUID();
     const { catalog, sha } = await currentCatalog(token);
     const old = catalog.items.find((item) => item.id === id);
@@ -423,11 +416,17 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     if (input.filePath) {
       const filePath = path.resolve(input.filePath);
       const name = cleanFileName(path.basename(filePath));
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_FILE_SIZE) throw new Error('File must be a non-empty file under 2 GB');
+      if (['.zip', '.rar'].includes(path.extname(name).toLowerCase())) await validateArchive(filePath);
       files.push({ path: filePath, name, image: false });
     }
     if (input.imagePath) {
       const imagePath = path.resolve(input.imagePath);
       const name = cleanFileName(path.basename(imagePath));
+      const stat = fs.statSync(imagePath);
+      if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_IMAGE_SIZE) throw new Error('Image must be a non-empty image under 20 MB');
+      validateImage(imagePath);
       files.push({ path: imagePath, name, image: true });
     }
     const assets = await uploadFiles(token, files, id);
@@ -437,6 +436,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
       id, category, title, description,
       publishedAt: requestedDate || old?.publishedAt || new Date().toISOString().slice(0, 10),
       genres: [...new Set(input?.genres || old?.genres || [])],
+      supportedDaws: [...new Set(input?.supportedDaws || old?.supportedDaws || [])],
+      fileSize: fileAsset?.size || old?.fileSize || null,
       fileName: fileAsset?.name || old.fileName,
       fileUrl: fileAsset?.url || old.fileUrl,
       imageUrl: imageAsset?.url || old.imageUrl,
@@ -538,6 +539,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
       category: item.category, fileName, root, library: true,
       publishedAt: item.publishedAt, genres: item.genres,
+      fileSize: item.fileSize, supportedDaws: item.supportedDaws,
       relativePath: path.relative(root, target), isDirectory: false
     };
     const records = readDownloads();
@@ -609,6 +611,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
       category: item.category, fileName: baseName, root, library: true,
       publishedAt: item.publishedAt, genres: item.genres,
+      fileSize: item.fileSize, supportedDaws: item.supportedDaws,
       relativePath: path.relative(root, installedDirectory || targetDirectory),
       isDirectory: Boolean(installedDirectory),
       ...(installIntoCategory ? { libraryRoot: true, ownedPaths: installedPaths } : {})
@@ -676,6 +679,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   }
 
   function listDownloads() {
+    let catalogItems = new Map();
+    try { catalogItems = new Map(parseCatalog(JSON.parse(fs.readFileSync(cacheFile, 'utf8'))).items.map((item) => [item.id, item])); } catch {}
     return readDownloads().filter((record) => {
       try {
         const target = downloadTarget(record);
@@ -686,13 +691,18 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
         return fs.existsSync(target);
       }
       catch { return false; }
-    }).map((record) => ({
-      id: record.id, itemId: record.itemId, title: record.title, category: record.category,
-      fileName: record.fileName, isDirectory: record.isDirectory === true,
-      publishedAt: isDateOnly(record.publishedAt) ? record.publishedAt : '',
-      genres: Array.isArray(record.genres) ? record.genres.filter((genre) => GENRES.includes(genre)) : [],
-      draggable: typeof record.dragRelativePath === 'string' || (!record.isDirectory && !record.libraryRoot && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)))
-    }));
+    }).map((record) => {
+      const catalogItem = catalogItems.get(record.itemId);
+      return {
+        id: record.id, itemId: record.itemId, title: record.title, category: record.category,
+        fileName: record.fileName, isDirectory: record.isDirectory === true,
+        publishedAt: catalogItem?.publishedAt || (isDateOnly(record.publishedAt) ? record.publishedAt : ''),
+        genres: catalogItem?.genres || (Array.isArray(record.genres) ? record.genres.filter((genre) => GENRES.includes(genre)) : []),
+        fileSize: catalogItem?.fileSize || (Number.isSafeInteger(record.fileSize) ? record.fileSize : null),
+        supportedDaws: catalogItem?.supportedDaws || (Array.isArray(record.supportedDaws) ? record.supportedDaws.filter((daw) => SUPPORTED_DAWS.includes(daw)) : []),
+        draggable: typeof record.dragRelativePath === 'string' || (!record.isDirectory && !record.libraryRoot && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)))
+      };
+    });
   }
 
   function deleteDownload(id) {
@@ -732,26 +742,6 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return dragPath;
   }
 
-  function integrateWithDaw(parentDirectory) {
-    if (typeof parentDirectory !== 'string' || !path.isAbsolute(parentDirectory) || !fs.statSync(parentDirectory).isDirectory()) {
-      throw new Error('Invalid DAW folder');
-    }
-    const source = path.resolve(currentDownloadsDirectory);
-    fs.mkdirSync(source, { recursive: true });
-    const realSource = fs.realpathSync(source);
-    const parent = fs.realpathSync(parentDirectory);
-    if (parent === realSource || parent.startsWith(`${realSource}${path.sep}`)) throw new Error('Choose a DAW folder outside the downloads directory');
-    const link = path.join(parent, 'Music Base');
-    if (fs.existsSync(link)) {
-      let linkedTo = null;
-      try { linkedTo = fs.realpathSync(link); } catch {}
-      if (linkedTo === realSource) return link;
-      throw new Error('A Music Base folder already exists in the selected DAW location');
-    }
-    fs.symlinkSync(realSource, link, 'junction');
-    return link;
-  }
-
   function verifyPin(pin) {
     if (typeof pin !== 'string') return false;
     const candidate = crypto.createHash('sha256').update(pin).digest();
@@ -762,7 +752,32 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   addDownloadRoots(downloadRoots);
   ensureLibraryStructure();
   migrateLegacyDownloads();
-  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin, getFavorites, toggleFavorite };
+  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, verifyPin, getFavorites, toggleFavorite };
 }
 
-module.exports = { createWarehouseService, CATEGORIES, GENRES, parseCatalog, validateCategory, cleanFileName };
+function validateImageFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const header = Buffer.alloc(12);
+  const descriptor = fs.openSync(filePath, 'r');
+  let length;
+  try { length = fs.readSync(descriptor, header, 0, header.length, 0); }
+  finally { fs.closeSync(descriptor); }
+  const valid = (ext === '.png' && length >= 8 && header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+    (['.jpg', '.jpeg'].includes(ext) && length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) ||
+    (ext === '.gif' && length >= 6 && ['GIF87a', 'GIF89a'].includes(header.toString('ascii', 0, 6))) ||
+    (ext === '.webp' && length >= 12 && header.toString('ascii', 0, 4) === 'RIFF' && header.toString('ascii', 8, 12) === 'WEBP');
+  if (!valid) throw new Error('Image content does not match its file type');
+}
+
+async function validateArchiveFile(filePath) {
+  let executable = sevenZip.path7za;
+  if (executable.includes(`${path.sep}app.asar${path.sep}`)) executable = executable.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+  if (!fs.existsSync(executable)) throw new Error('Archive validator is unavailable');
+  try {
+    await execFileAsync(executable, ['t', filePath, '-bd'], { windowsHide: true, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
+  } catch (error) {
+    throw new Error(`Archive validation failed: ${error.message}`);
+  }
+}
+
+module.exports = { createWarehouseService, CATEGORIES, GENRES, SUPPORTED_DAWS, parseCatalog, validateCategory, cleanFileName, validateImageFile, validateArchiveFile };

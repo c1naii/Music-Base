@@ -53,9 +53,14 @@
           <label class="settings-label" id="download-path-label" data-i18n="downloadPath">Путь загрузки</label>
           <div class="settings-path" id="download-path"></div>
           <div class="settings-path-actions"><button class="settings-action" id="choose-download-path" type="button" data-i18n="changePath">Изменить</button><button class="settings-action" id="reset-download-path" type="button" data-i18n="defaultPath">По умолчанию</button></div>
-          <p class="settings-hint" data-i18n="dawIntegrationHint">Выберите папку, уже отображаемую в браузере DAW. В ней появится ссылка Music Base.</p>
-          <div class="settings-path-actions"><button class="settings-action" id="integrate-flstudio" type="button">FL Studio</button><button class="settings-action" id="integrate-ableton" type="button">Ableton Live</button></div>
           <p class="settings-path-status" id="download-path-status" aria-live="polite"></p>
+        </section>
+        <div class="settings-divider"></div>
+        <section class="settings-backup" aria-labelledby="backup-label">
+          <label class="settings-label" id="backup-label" data-i18n="backup">Резервная копия</label>
+          <p class="settings-hint" data-i18n="backupDescription">Сохранить заметки и список загрузок в Documents\Music Base\Backups.</p>
+          <button class="settings-action" id="create-backup" type="button" data-i18n="createBackup">Создать резервную копию</button>
+          <p class="settings-path-status" id="backup-status" aria-live="polite"></p>
         </section>
         <div class="settings-version"><span data-i18n="appVersion">Версия приложения</span><span id="app-version"></span></div>
       </section>
@@ -110,6 +115,7 @@
               <label data-i18n="adminDescription" for="admin-description">Описание</label><textarea id="admin-description" rows="4" maxlength="5000"></textarea>
               <label data-i18n="publicationDate" for="admin-published-at">Дата публикации материала</label><div class="publication-date-row"><input id="admin-published-at" type="date" required /><button id="admin-publish-today" type="button" data-i18n="publishedToday">Опубликовано сегодня</button></div>
               <fieldset class="admin-genre-fieldset"><legend data-i18n="genres">Жанры</legend><div class="admin-genres" id="admin-genres"></div></fieldset>
+              <fieldset class="admin-genre-fieldset"><legend data-i18n="supportedDaws">Совместимость с DAW</legend><div class="admin-genres" id="admin-daws"></div></fieldset>
               <div class="admin-file-row"><span data-i18n="adminCover">Обложка</span><button id="admin-pick-image" type="button" data-i18n="adminChooseImage">Выбрать изображение</button><small id="admin-image-name" data-i18n="adminNoFileSelected">Не выбрано</small></div>
               <div class="admin-file-row"><span data-i18n="adminFile">Файл</span><button id="admin-pick-file" type="button" data-i18n="adminChooseFile">Выбрать файл</button><small id="admin-file-name" data-i18n="adminNoFileSelected">Не выбрано</small></div>
               <div class="admin-actions"><button class="admin-primary" id="admin-save" type="submit" data-i18n="adminSave">Сохранить</button><button class="admin-delete" id="admin-delete" type="button" data-i18n="adminDelete" hidden>Удалить</button></div>

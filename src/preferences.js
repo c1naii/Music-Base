@@ -9,9 +9,7 @@ const defaults = Object.freeze({
   maximized: false,
   lastPlace: null,
   downloadDirectory: null,
-  downloadRoots: [],
-  dawIntegrationTargets: [],
-  connectedDaws: {}
+  downloadRoots: []
 });
 
 function validBounds(value) {
@@ -48,13 +46,7 @@ function normalizePreferences(value = {}) {
     maximized: value.maximized === true,
     lastPlace,
     downloadDirectory: typeof value.downloadDirectory === 'string' && path.isAbsolute(value.downloadDirectory) ? path.normalize(value.downloadDirectory) : null,
-    downloadRoots: Array.isArray(value.downloadRoots) ? [...new Set(value.downloadRoots.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : [],
-    dawIntegrationTargets: Array.isArray(value.dawIntegrationTargets) ? [...new Set(value.dawIntegrationTargets.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : [],
-    connectedDaws: Object.fromEntries(['flstudio', 'ableton'].flatMap((daw) => {
-      const entry = value.connectedDaws?.[daw];
-      return entry && typeof entry.version === 'string' && typeof entry.installPath === 'string' && path.isAbsolute(entry.installPath)
-        ? [[daw, { version: entry.version.slice(0, 60), installPath: path.normalize(entry.installPath) }]] : [];
-    }))
+    downloadRoots: Array.isArray(value.downloadRoots) ? [...new Set(value.downloadRoots.filter((item) => typeof item === 'string' && path.isAbsolute(item)).map((item) => path.normalize(item)))] : []
   };
 }
 

@@ -515,3 +515,28 @@ Object.assign(window.musicI18n.uk.ui, {
   genre_pop: 'Поп', genre_hip_hop: 'Хіп-хоп', genre_rock: 'Рок', genre_electronic: 'Електронна музика', genre_rnb: 'R&B',
   genre_funk: 'Фанк', genre_phonk: 'Фонк', genre_brazilian_phonk: 'Бразильський фонк', genre_ambient: 'Ембієнт', genre_jazz: 'Джаз'
 });
+
+Object.assign(window.musicI18n.ru.ui, {
+  fileSize: 'Размер файла', supportedDaws: 'Совместимость с DAW', backup: 'Резервная копия',
+  backupDescription: 'Сохранить заметки и список загрузок в Documents\\Music Base\\Backups.',
+  createBackup: 'Создать резервную копию', creatingBackup: 'Создаю резервную копию…',
+  backupCreated: 'Копия создана:', backupFailed: 'Не удалось создать резервную копию.'
+});
+Object.assign(window.musicI18n.en.ui, {
+  fileSize: 'File size', supportedDaws: 'DAW compatibility', backup: 'Backup',
+  backupDescription: 'Save notes and your downloads list to Documents\\Music Base\\Backups.',
+  createBackup: 'Create backup', creatingBackup: 'Creating backup…',
+  backupCreated: 'Backup created:', backupFailed: 'Could not create a backup.'
+});
+Object.assign(window.musicI18n.uk.ui, {
+  fileSize: 'Розмір файлу', supportedDaws: 'Сумісність із DAW', backup: 'Резервна копія',
+  backupDescription: 'Зберегти нотатки та список завантажень у Documents\\Music Base\\Backups.',
+  createBackup: 'Створити резервну копію', creatingBackup: 'Створюю резервну копію…',
+  backupCreated: 'Копію створено:', backupFailed: 'Не вдалося створити резервну копію.'
+});
+
+for (const locale of Object.values(window.musicI18n)) {
+  delete locale.ui.dawIntegrationHint;
+  delete locale.ui.dawIntegrationError;
+  delete locale.ui.dawIntegrated;
+}

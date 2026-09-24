@@ -1,11 +1,11 @@
-const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, dialog, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const { createUpdater } = require('./updater');
 const { loadPreferences, savePreferences } = require('./preferences');
 const { createNotesStore } = require('./notes');
 const { createWarehouseService } = require('./warehouse');
-const { findInstalledDaw } = require('./daw');
+const { createBackupService } = require('./backup');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -19,6 +19,7 @@ let preferences;
 let preferencesFile;
 let notesStore;
 let warehouseStore;
+let backupStore;
 let defaultDownloadsDirectory;
 let warehouseAdminUnlocked = false;
 
@@ -62,8 +63,7 @@ function publicPreferences() {
     visualEffects: preferences.visualEffects,
     lastPlace: preferences.lastPlace,
     downloadDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
-    downloadDirectoryIsDefault: !preferences.downloadDirectory,
-    connectedDaws: preferences.connectedDaws
+    downloadDirectoryIsDefault: !preferences.downloadDirectory
   };
 }
 
@@ -258,13 +258,12 @@ ipcMain.handle('reset-download-directory', (event) => {
   return publicPreferences();
 });
 
-ipcMain.handle('integrate-daw', (event, daw) => {
-  if (!isMainWindow(event) || !['flstudio', 'ableton'].includes(daw)) return null;
-  const installed = findInstalledDaw(daw);
-  if (!installed) throw new Error('DAW installation was not detected');
-  preferences.connectedDaws[daw] = { version: installed.version, installPath: installed.installPath };
-  savePreferences(preferencesFile, preferences);
-  return installed;
+ipcMain.handle('create-backup', async (event) => {
+  if (!isMainWindow(event)) return null;
+  const directory = backupStore.create();
+  const openError = await shell.openPath(directory);
+  if (openError) throw new Error(openError);
+  return directory;
 });
 ipcMain.handle('get-preferences', (event) => {
   if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) return null;
@@ -305,21 +304,26 @@ ipcMain.on('install-update', (event) => {
 app.whenReady().then(() => {
   preferencesFile = path.join(app.getPath('userData'), 'music-base-preferences.json');
   preferences = loadPreferences(preferencesFile);
-  const previousConnections = JSON.stringify(preferences.connectedDaws);
-  for (const daw of Object.keys(preferences.connectedDaws)) {
-    const installed = findInstalledDaw(daw);
-    if (installed) preferences.connectedDaws[daw] = { version: installed.version, installPath: installed.installPath };
-    else delete preferences.connectedDaws[daw];
-  }
-  if (JSON.stringify(preferences.connectedDaws) !== previousConnections) savePreferences(preferencesFile, preferences);
-  notesStore = createNotesStore(path.join(app.getPath('appData'), 'Music Base', 'Data'));
+  const notesDataDirectory = path.join(app.getPath('appData'), 'Music Base', 'Data');
+  const userDataDirectory = path.join(app.getPath('userData'), 'Data');
+  notesStore = createNotesStore(notesDataDirectory);
   defaultDownloadsDirectory = path.join(app.getPath('documents'), 'Music Base');
   warehouseStore = createWarehouseService({
-    dataDirectory: path.join(app.getPath('userData'), 'Data'),
+    dataDirectory: userDataDirectory,
     downloadsDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
     legacyDownloadsDirectory: defaultDownloadsDirectory,
     downloadsIndexPath: path.join(app.getPath('userData'), 'Data', 'downloads.json'),
-    downloadRoots: [...preferences.downloadRoots, defaultDownloadsDirectory]
+    downloadRoots: [...preferences.downloadRoots, defaultDownloadsDirectory],
+    validateImage: (filePath) => {
+      if (nativeImage.createFromPath(filePath).isEmpty()) throw new Error('Image could not be decoded');
+    }
+  });
+  backupStore = createBackupService({
+    notesDirectory: path.join(notesDataDirectory, 'Notes'),
+    notesPinsPath: path.join(notesDataDirectory, 'notes-pins.json'),
+    downloadsIndexPath: path.join(userDataDirectory, 'downloads.json'),
+    favoritesPath: path.join(userDataDirectory, 'warehouse-favorites.json'),
+    backupDirectory: path.join(app.getPath('documents'), 'Music Base', 'Backups')
   });
   createApp();
   if (app.isPackaged && process.platform === 'win32') {

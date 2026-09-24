@@ -12,6 +12,7 @@ const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets', 'bank
 const genreIds = ['pop', 'hip-hop', 'rock', 'electronic', 'rnb', 'funk', 'phonk', 'brazilian-phonk', 'ambient', 'jazz'];
 const selectedGenres = new Set();
 const selectedAdminGenres = new Set();
+const selectedSupportedDaws = new Set();
 const warehouseCategoryList = document.getElementById('warehouse-categories');
 const warehouseEmptyView = document.getElementById('warehouse-empty-view');
 const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
@@ -23,6 +24,7 @@ const genreFilterTrigger = document.getElementById('genre-filter-trigger');
 const genreFilterOptions = document.getElementById('genre-filter-options');
 const adminPublishedAt = document.getElementById('admin-published-at');
 const adminGenres = document.getElementById('admin-genres');
+const adminDaws = document.getElementById('admin-daws');
 const warehouseDownloadsList = document.getElementById('warehouse-downloads-list');
 const warehouseDownloadsEmpty = document.getElementById('warehouse-downloads-empty');
 const warehouseAdminTrigger = document.getElementById('warehouse-admin-trigger');
@@ -96,7 +98,7 @@ function renderWarehouseItems() {
     heart.addEventListener('click', async (event) => { event.stopPropagation(); warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(item.id); renderWarehouseItems(); });
     cover.append(image, heart);
     const title = makeElement('span', 'warehouse-item-title', item.title);
-    card.append(cover, title, makePublicationLabel(item.publishedAt), makeGenreChips(item.genres));
+    card.append(cover, title, makePublicationLabel(item.publishedAt), makeGenreChips(item.genres), makeItemInfo(item.fileSize, item.supportedDaws));
     warehouseItemsView.append(card);
   }
 }
@@ -121,6 +123,7 @@ function showWarehouseItem(id) {
   const title = makeElement('h2', 'warehouse-detail-title', item.title);
   const published = makePublicationLabel(item.publishedAt);
   const genres = makeGenreChips(item.genres);
+  const itemInfo = makeItemInfo(item.fileSize, item.supportedDaws);
   const description = makeElement('p', 'warehouse-detail-description', item.description || '');
   const record = warehouseDownloads.find((entry) => entry.itemId === id);
   const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
@@ -149,10 +152,10 @@ function showWarehouseItem(id) {
       downloadProgress.delete(id);
       showWarehouseItem(id);
     }
-    catch { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = ui.downloadFailed; downloadProgress.delete(id); }
+    catch (error) { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = `${ui.downloadFailed} ${String(error?.message || '').slice(0, 180)}`.trim(); downloadProgress.delete(id); }
   });
   if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
-  warehouseDetailView.append(back, coverWrap, title, published, genres, description, download, progress, errorStatus);
+  warehouseDetailView.append(back, coverWrap, title, published, genres, itemInfo, description, download, progress, errorStatus);
 }
 
 const genreIcons = {
@@ -179,9 +182,10 @@ function genreIcon(id) {
 function genreLabel(id) { return ui[`genre_${id.replaceAll('-', '_')}`] || id; }
 
 function renderGenreChoices() {
-  if (!genreFilterOptions || !adminGenres) return;
+  if (!genreFilterOptions || !adminGenres || !adminDaws) return;
   genreFilterOptions.replaceChildren();
   adminGenres.replaceChildren();
+  adminDaws.replaceChildren();
   for (const id of genreIds) {
     const filterLabel = makeElement('label', 'genre-option');
     const filterCheck = document.createElement('input');
@@ -194,6 +198,13 @@ function renderGenreChoices() {
     adminCheck.addEventListener('change', () => { adminCheck.checked ? selectedAdminGenres.add(id) : selectedAdminGenres.delete(id); });
     adminLabel.append(adminCheck, genreIcon(id), makeElement('span', '', genreLabel(id)));
     adminGenres.append(adminLabel);
+  }
+  for (const id of ['flstudio', 'ableton']) {
+    const label = makeElement('label', 'admin-genre-option');
+    const check = document.createElement('input'); check.type = 'checkbox'; check.value = id; check.checked = selectedSupportedDaws.has(id);
+    check.addEventListener('change', () => { check.checked ? selectedSupportedDaws.add(id) : selectedSupportedDaws.delete(id); });
+    label.append(check, makeElement('span', '', dawLabel(id)));
+    adminDaws.append(label);
   }
 }
 
@@ -223,6 +234,26 @@ function makeGenreChips(genres = []) {
     const chip = makeElement('span', 'warehouse-genre-chip');
     chip.append(genreIcon(id), makeElement('span', '', genreLabel(id)));
     row.append(chip);
+  }
+  row.hidden = !row.childElementCount;
+  return row;
+}
+
+function formatFileSize(size) {
+  if (!Number.isSafeInteger(size) || size <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let amount = size; let unit = 0;
+  while (amount >= 1024 && unit < units.length - 1) { amount /= 1024; unit += 1; }
+  return `${new Intl.NumberFormat(language, { maximumFractionDigits: amount >= 10 ? 0 : 1 }).format(amount)} ${units[unit]}`;
+}
+
+function dawLabel(id) { return id === 'flstudio' ? 'FL Studio' : id === 'ableton' ? 'Ableton Live' : id; }
+
+function makeItemInfo(size, supportedDaws = []) {
+  const row = makeElement('div', 'warehouse-item-info');
+  if (size) row.append(makeElement('span', 'warehouse-file-size', `${ui.fileSize}: ${formatFileSize(size)}`));
+  for (const daw of ['flstudio', 'ableton'].filter((id) => (supportedDaws || []).includes(id))) {
+    row.append(makeElement('span', 'warehouse-daw-chip', dawLabel(daw)));
   }
   row.hidden = !row.childElementCount;
   return row;
@@ -259,7 +290,7 @@ function renderWarehouseDownloads() {
     const row = makeElement('div', 'warehouse-download-row');
     const details = makeElement('div', 'warehouse-download-details');
     details.append(makeElement('span', 'warehouse-download-title', file.title));
-    details.append(makePublicationLabel(file.publishedAt), makeGenreChips(file.genres));
+    details.append(makePublicationLabel(file.publishedAt), makeGenreChips(file.genres), makeItemInfo(file.fileSize, file.supportedDaws));
     details.append(makeElement('span', 'warehouse-download-filename', `${ui[file.category]} · ${file.fileName}`));
     row.append(details, makeDownloadActions(file));
     warehouseDownloadsList.append(row);
@@ -364,6 +395,7 @@ function resetAdminForm() {
   adminForm.reset();
   adminPublishedAt.value = localDateString();
   selectedAdminGenres.clear();
+  selectedSupportedDaws.clear();
   renderGenreChoices();
   adminCategoryInput.value = currentWarehouseCategory || 'drumkits';
   adminImageName.textContent = ui.adminNoFileSelected;
@@ -384,6 +416,8 @@ function editAdminItem(id) {
   adminPublishedAt.value = item.publishedAt || localDateString();
   selectedAdminGenres.clear();
   for (const genre of item.genres || []) selectedAdminGenres.add(genre);
+  selectedSupportedDaws.clear();
+  for (const daw of item.supportedDaws || []) selectedSupportedDaws.add(daw);
   renderGenreChoices();
   adminImagePath = null;
   adminFilePath = null;
@@ -402,7 +436,7 @@ async function chooseAdminFile(kind) {
     if (!result) return;
     if (kind === 'image') { adminImagePath = result.path; adminImageName.textContent = result.name; }
     else { adminFilePath = result.path; adminFileName.textContent = result.name; }
-  } catch { adminStatus.textContent = ui.adminSaveError; }
+  } catch (error) { adminStatus.textContent = `${ui.adminSaveError} ${String(error?.message || '').slice(0, 180)}`.trim(); }
 }
 
 async function refreshWarehouse() {
@@ -587,6 +621,7 @@ adminForm.addEventListener('submit', async (event) => {
       description: adminDescriptionInput.value,
       publishedAt: adminPublishedAt.value,
       genres: [...selectedAdminGenres],
+      supportedDaws: [...selectedSupportedDaws],
       imagePath: adminImagePath,
       filePath: adminFilePath
     });
@@ -604,7 +639,7 @@ adminForm.addEventListener('submit', async (event) => {
     renderWarehouse();
     renderAdminList();
     renderSearch();
-  } catch { adminStatus.textContent = ui.adminSaveError; }
+  } catch (error) { adminStatus.textContent = `${ui.adminSaveError} ${String(error?.message || '').slice(0, 180)}`.trim(); }
   finally { saveButton.disabled = false; }
 });
 adminDeleteButton.addEventListener('click', async () => {
@@ -794,6 +829,7 @@ const settingsPanel = document.getElementById('settings-panel');
 const settingsClose = document.getElementById('settings-close');
 const downloadPathLabel = document.getElementById('download-path');
 const downloadPathStatus = document.getElementById('download-path-status');
+const backupStatus = document.getElementById('backup-status');
 const languageSelect = document.getElementById('language-select');
 const splashToggle = document.getElementById('splash-toggle');
 const effectsToggle = document.getElementById('effects-toggle');
@@ -822,12 +858,6 @@ function renderPreferences(preferences) {
   if (preferences.language !== language) applyLanguage(preferences.language);
   if (preferences.downloadDirectory) {
     downloadPathLabel.textContent = `${preferences.downloadDirectory}${preferences.downloadDirectoryIsDefault ? ` · ${ui.defaultBadge}` : ''}`;
-  }
-  for (const [buttonId, daw] of [['integrate-flstudio', 'flstudio'], ['integrate-ableton', 'ableton']]) {
-    const button = document.getElementById(buttonId);
-    const connected = Boolean(preferences.connectedDaws?.[daw]);
-    button.setAttribute('aria-pressed', String(connected));
-    button.classList.toggle('is-connected', connected);
   }
 }
 
@@ -862,17 +892,16 @@ document.getElementById('reset-download-path').addEventListener('click', async (
     if (preferences) { downloadPathStatus.textContent = ui.defaultPathSet; renderPreferences(preferences); }
   } catch { downloadPathStatus.textContent = ui.downloadPathError; }
 });
-for (const [buttonId, daw] of [['integrate-flstudio', 'flstudio'], ['integrate-ableton', 'ableton']]) {
-  document.getElementById(buttonId).addEventListener('click', async () => {
-    try {
-      const result = await window.musicBase.integrateDaw(daw);
-      if (result) {
-        downloadPathStatus.textContent = `${ui.dawIntegrated}: ${daw === 'flstudio' ? 'FL Studio' : 'Ableton Live'} ${result.version}`;
-        renderPreferences(await window.musicBase.getPreferences());
-      }
-    } catch { downloadPathStatus.textContent = ui.dawIntegrationError; }
-  });
-}
+document.getElementById('create-backup').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  backupStatus.textContent = ui.creatingBackup;
+  try {
+    const backupPath = await window.musicBase.createBackup();
+    backupStatus.textContent = `${ui.backupCreated} ${backupPath}`;
+  } catch { backupStatus.textContent = ui.backupFailed; }
+  finally { button.disabled = false; }
+});
 
 function renderUpdateStatus(status) {
   updateTitle.textContent = ui.updateAvailable;
@@ -1004,8 +1033,9 @@ function searchItems() {
   }
   for (const item of warehouseCatalog.items) {
     const genreNames = (item.genres || []).map(genreLabel).join(' ');
+    const dawNames = (item.supportedDaws || []).map(dawLabel).join(' ');
     const published = publicationText(item.publishedAt);
-    items.push({ kind: 'topic', title: item.title, detail: [ui[item.category], published && `${ui.published} ${published}`, genreNames].filter(Boolean).join(' · '), text: `${item.title} ${item.description} ${genreNames}`, place: { type: 'warehouse-item', itemId: item.id } });
+    items.push({ kind: 'topic', title: item.title, detail: [ui[item.category], published && `${ui.published} ${published}`, item.fileSize && `${ui.fileSize}: ${formatFileSize(item.fileSize)}`, genreNames, dawNames].filter(Boolean).join(' · '), text: `${item.title} ${item.description} ${genreNames} ${dawNames}`, place: { type: 'warehouse-item', itemId: item.id } });
   }
   for (const folder of library.folders) {
     items.push({ kind: 'folder', title: folder.title, detail: folder.description, text: folder.title + ' ' + folder.description, place: { type: 'folder', folderId: folder.id } });

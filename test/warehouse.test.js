@@ -4,19 +4,42 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { createWarehouseService, cleanFileName, validateCategory, parseCatalog } = require('../src/warehouse');
+const { createWarehouseService, cleanFileName, validateCategory, parseCatalog, validateArchiveFile, validateImageFile } = require('../src/warehouse');
 
 test('catalog keeps publication dates and only supported genres', () => {
   const item = {
     id: '30bdfc4a-cc67-41fe-8c9d-bc5070c84c62', category: 'drumkits', title: 'Kit', description: '', fileName: 'kit.zip',
     fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/kit.zip',
     imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png',
-    publishedAt: '2026-09-24', genres: ['phonk', 'funk', 'not-a-genre']
+    publishedAt: '2026-09-24', genres: ['phonk', 'funk', 'not-a-genre'], fileSize: 12345,
+    supportedDaws: ['flstudio', 'invalid']
   };
   const parsed = parseCatalog({ schemaVersion: 1, items: [item] }).items[0];
   assert.equal(parsed.publishedAt, '2026-09-24');
   assert.deepEqual(parsed.genres, ['phonk', 'funk']);
+  assert.equal(parsed.fileSize, 12345);
+  assert.deepEqual(parsed.supportedDaws, ['flstudio']);
   assert.equal(parseCatalog({ schemaVersion: 1, items: [{ ...item, publishedAt: '2026-02-31' }] }).items[0].publishedAt, '');
+  assert.equal(parseCatalog({ schemaVersion: 1, items: [{ ...item, fileUrl: 'https://example.com/file.zip' }] }).items.length, 0);
+});
+
+test('archive preflight accepts a valid ZIP and rejects a broken archive', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-archive-check-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const valid = path.join(root, 'valid.zip');
+  const invalid = path.join(root, 'invalid.zip');
+  fs.writeFileSync(valid, zipFile('kick.wav', 'audio'));
+  fs.writeFileSync(invalid, 'not an archive');
+  await validateArchiveFile(valid);
+  await assert.rejects(validateArchiveFile(invalid), /Archive validation failed/);
+});
+
+test('image preflight rejects content whose bytes do not match its extension', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-image-check-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const invalid = path.join(root, 'cover.png');
+  fs.writeFileSync(invalid, Buffer.from('not a PNG'));
+  assert.throws(() => validateImageFile(invalid), /does not match/);
 });
 
 function zipFile(name, content) {
@@ -57,7 +80,7 @@ test('ZIP downloads are extracted into their category and can be fully removed',
       fileName: 'Kit.zip',
       fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/v0.5.1/kit.zip',
       imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/v0.5.1/cover.png',
-      publishedAt: '2026-09-24', genres: ['hip-hop', 'funk']
+      publishedAt: '2026-09-24', genres: ['hip-hop', 'funk'], fileSize: archiveBytes.length, supportedDaws: ['flstudio']
     }]
   };
   const fetchImpl = async (url) => {
@@ -79,6 +102,8 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.equal(downloaded[0].isDirectory, true);
   assert.equal(downloaded[0].publishedAt, '2026-09-24');
   assert.deepEqual(downloaded[0].genres, ['hip-hop', 'funk']);
+  assert.equal(downloaded[0].fileSize, archiveBytes.length);
+  assert.deepEqual(downloaded[0].supportedDaws, ['flstudio']);
   const filePath = path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Test Kit', 'loop.mid');
   assert.equal(fs.readFileSync(filePath, 'utf8'), 'MIDI bytes');
   assert.equal(fs.existsSync(path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Kit.zip')), false);
@@ -200,7 +225,7 @@ test('interrupted bank downloads resume from the saved byte and finish once', as
   assert.deepEqual(fs.readFileSync(path.join(root, 'Music Base', 'Library', 'Banks', 'Bank.fxp')), bytes);
 });
 
-test('downloads follow the selected directory and DAW folder link points at it', async (t) => {
+test('downloads follow the selected directory without creating DAW links', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-path-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const defaultPath = path.join(root, 'Documents', 'Music Base');
@@ -210,11 +235,11 @@ test('downloads follow the selected directory and DAW folder link points at it',
   const store = createWarehouseService({ dataDirectory: path.join(root, 'Data'), downloadsDirectory: defaultPath,
     downloadsIndexPath: path.join(root, 'Data', 'downloads.json'), tokenProvider: () => null });
   store.setDownloadsDirectory(customPath);
-  const link = store.integrateWithDaw(dawBrowser);
-  assert.equal(fs.realpathSync(link), fs.realpathSync(customPath));
+  assert.equal(fs.existsSync(path.join(customPath, 'Library', 'Drum Kits')), true);
   const nextPath = path.join(root, 'Another Music Folder');
-  store.setDownloadsDirectory(nextPath, [dawBrowser]);
-  assert.equal(fs.realpathSync(link), fs.realpathSync(nextPath));
+  store.setDownloadsDirectory(nextPath);
+  assert.equal(fs.existsSync(path.join(dawBrowser, 'Music Base')), false);
+  assert.equal(fs.existsSync(path.join(nextPath, 'Library', 'Drum Kits')), true);
 });
 
 test('existing downloads are migrated when the shared index is introduced', async (t) => {
@@ -227,9 +252,24 @@ test('existing downloads are migrated when the shared index is introduced', asyn
   fs.mkdirSync(path.dirname(oldIndex), { recursive: true });
   fs.writeFileSync(file, 'preset');
   fs.writeFileSync(oldIndex, JSON.stringify([{ id: 'old-id', itemId: 'old-item', title: 'Old', category: 'presets', fileName: 'Old.fst', relativePath: path.join('PRESETS', 'Old.fst') }]));
-  const store = createWarehouseService({ dataDirectory: path.join(root, 'Data'), downloadsDirectory: downloads,
+  const dataDirectory = path.join(root, 'Data');
+  fs.mkdirSync(dataDirectory, { recursive: true });
+  fs.writeFileSync(path.join(dataDirectory, 'warehouse-catalog.json'), JSON.stringify({ schemaVersion: 1, items: [{
+    id: '00000000-0000-4000-8000-000000000001', category: 'presets', title: 'Old', description: '', fileName: 'Old.fst',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/Old.fst',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png',
+    publishedAt: '2026-09-01', genres: ['ambient'], fileSize: 2345, supportedDaws: ['ableton']
+  }] }));
+  const oldRecords = JSON.parse(fs.readFileSync(oldIndex, 'utf8'));
+  oldRecords[0].itemId = '00000000-0000-4000-8000-000000000001';
+  fs.writeFileSync(oldIndex, JSON.stringify(oldRecords));
+  const store = createWarehouseService({ dataDirectory, downloadsDirectory: downloads,
     downloadsIndexPath: path.join(root, 'Data', 'downloads.json'), tokenProvider: () => null });
   assert.equal(store.listDownloads()[0].title, 'Old');
+  assert.equal(store.listDownloads()[0].publishedAt, '2026-09-01');
+  assert.deepEqual(store.listDownloads()[0].genres, ['ambient']);
+  assert.equal(store.listDownloads()[0].fileSize, 2345);
+  assert.deepEqual(store.listDownloads()[0].supportedDaws, ['ableton']);
   assert.equal(fs.existsSync(path.join(root, 'Data', 'downloads.json')), true);
 });
 
