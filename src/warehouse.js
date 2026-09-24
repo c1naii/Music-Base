@@ -23,6 +23,10 @@ const CATEGORIES = Object.freeze({
   presets: 'PRESETS',
   banks: 'BANKS'
 });
+const LIBRARY_FOLDERS = Object.freeze({
+  drumkits: 'Drum Kits', plugins: 'Plugins', projects: 'Projects', presets: 'Presets',
+  banks: 'Banks', samples: 'Samples', midi: 'MIDI'
+});
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
@@ -232,6 +236,36 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return realDirectory;
   }
 
+  function libraryDirectory(category, root = currentDownloadsDirectory) {
+    const categoryName = LIBRARY_FOLDERS[validateCategory(category)];
+    fs.mkdirSync(path.resolve(root), { recursive: true });
+    const realRoot = fs.realpathSync(path.resolve(root));
+    const libraryPath = path.join(realRoot, 'Library');
+    fs.mkdirSync(libraryPath, { recursive: true });
+    const realLibrary = fs.realpathSync(libraryPath);
+    if (!realLibrary.startsWith(`${realRoot}${path.sep}`)) throw new Error('Invalid library directory');
+    const target = path.join(realLibrary, categoryName);
+    fs.mkdirSync(target, { recursive: true });
+    const realTarget = fs.realpathSync(target);
+    if (!realTarget.startsWith(`${realLibrary}${path.sep}`)) throw new Error('Invalid library category directory');
+    return realTarget;
+  }
+
+  function ensureLibraryStructure(root = currentDownloadsDirectory) {
+    const realRoot = path.resolve(root);
+    fs.mkdirSync(realRoot, { recursive: true });
+    const rootRealPath = fs.realpathSync(realRoot);
+    const libraryPath = path.join(rootRealPath, 'Library');
+    fs.mkdirSync(libraryPath, { recursive: true });
+    const libraryRealPath = fs.realpathSync(libraryPath);
+    if (!libraryRealPath.startsWith(`${rootRealPath}${path.sep}`)) throw new Error('Invalid library directory');
+    for (const folder of Object.values(LIBRARY_FOLDERS)) {
+      const target = path.join(libraryRealPath, folder);
+      fs.mkdirSync(target, { recursive: true });
+      if (!fs.realpathSync(target).startsWith(`${libraryRealPath}${path.sep}`)) throw new Error('Invalid library category directory');
+    }
+  }
+
   function setDownloadsDirectory(directory, integrationTargets = []) {
     if (typeof directory !== 'string' || !path.isAbsolute(directory)) throw new Error('Invalid downloads directory');
     const previous = currentDownloadsDirectory;
@@ -239,6 +273,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     try { previousReal = fs.realpathSync(previous); } catch {}
     currentDownloadsDirectory = path.resolve(directory);
     knownDownloadRoots.add(currentDownloadsDirectory);
+    ensureLibraryStructure(currentDownloadsDirectory);
     if (integrationTargets.length) fs.mkdirSync(currentDownloadsDirectory, { recursive: true });
     const currentReal = integrationTargets.length ? fs.realpathSync(currentDownloadsDirectory) : currentDownloadsDirectory;
     for (const parent of integrationTargets) {
@@ -266,9 +301,9 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
 
   function downloadTarget(record) {
     if (!knownDownloadRoots.has(path.resolve(record.root))) throw new Error('Unknown download directory');
-    const expectedRoot = categoryDirectory(record.category, record.root);
+    const expectedRoot = record.library === true ? libraryDirectory(record.category, record.root) : categoryDirectory(record.category, record.root);
     const target = path.resolve(fs.realpathSync(record.root), record.relativePath);
-    if (!target.startsWith(`${expectedRoot}${path.sep}`)) throw new Error('Invalid download path');
+    if (!(record.libraryRoot === true && target === expectedRoot) && !target.startsWith(`${expectedRoot}${path.sep}`)) throw new Error('Invalid download path');
     return target;
   }
 
@@ -455,72 +490,129 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   async function performDownload(id, onProgress) {
     const prior = readDownloads().find((record) => record.itemId === id);
     if (prior) {
-      try { if (fs.existsSync(downloadTarget(prior))) return listDownloads(); }
+      try {
+        const target = downloadTarget(prior);
+        const existing = Array.isArray(prior.ownedPaths)
+          ? prior.ownedPaths.some((relative) => fs.existsSync(path.resolve(prior.root, relative)))
+          : fs.existsSync(target);
+        if (existing) return listDownloads();
+      }
       catch {}
     }
     const item = (await getCatalog()).items.find((entry) => entry.id === id);
     if (!item) throw new Error('Warehouse item not found');
     const root = currentDownloadsDirectory;
-    const targetDirectory = categoryDirectory(item.category, root);
+    const targetDirectory = libraryDirectory(item.category, root);
     const baseName = cleanFileName(item.fileName);
     const ext = path.extname(baseName);
     const stem = path.basename(baseName, ext);
     const isArchive = ['.zip', '.rar'].includes(ext.toLowerCase());
-    if (isArchive) {
-      let folderName = stem || 'Archive';
-      let destination = path.join(targetDirectory, folderName);
-      let archivePath = path.join(targetDirectory, `${folderName}${ext}`);
-      for (let suffix = 2; fs.existsSync(destination) || fs.existsSync(archivePath); suffix += 1) {
-        folderName = `${stem || 'Archive'} (${suffix})`;
-        destination = path.join(targetDirectory, folderName);
-        archivePath = path.join(targetDirectory, `${folderName}${ext}`);
-      }
-      try {
-        await fetchFile(item.fileUrl, archivePath, onProgress);
-      } catch (error) {
-        try { fs.unlinkSync(archivePath); } catch {}
-        throw error;
-      }
-      try {
-        fs.mkdirSync(destination, { recursive: false });
-        await extractArchive(archivePath, destination);
-        fs.unlinkSync(archivePath);
-      } catch (error) {
-        try { fs.unlinkSync(archivePath); } catch {}
-        try { fs.rmSync(destination, { recursive: true, force: true }); } catch {}
-        if (error.message === 'RAR extractor is unavailable') throw error;
-        throw new Error(`Archive extraction failed: ${error.message}`);
-      }
-      const record = {
-        id: crypto.randomUUID(), itemId: item.id, title: item.title,
-        category: item.category, fileName: baseName, root,
-        relativePath: path.relative(root, destination), isDirectory: true
-      };
-      const draggableFiles = findDraggableFiles(destination);
-      if (draggableFiles.length === 1) record.dragRelativePath = path.relative(root, draggableFiles[0]);
-      const records = readDownloads();
-      records.push(record);
-      try { writeDownloads(records); }
-      catch (error) { try { fs.rmSync(destination, { recursive: true, force: true }); } catch {} throw error; }
-      return listDownloads();
-    }
+    if (isArchive) return installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress);
     let fileName = baseName;
     let target = path.join(targetDirectory, fileName);
     for (let suffix = 2; fs.existsSync(target); suffix += 1) {
       fileName = `${stem} (${suffix})${ext}`;
       target = path.join(targetDirectory, fileName);
     }
-    try { await fetchFile(item.fileUrl, target, onProgress); }
-    catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
+    const temporary = path.join(targetDirectory, `.download-${crypto.randomUUID()}${ext}`);
+    try {
+      await fetchFile(item.fileUrl, temporary, onProgress);
+      onProgress(0, 'installing');
+      fs.renameSync(temporary, target);
+    } catch (error) { try { fs.unlinkSync(temporary); } catch {} throw error; }
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
-      category: item.category, fileName, root,
+      category: item.category, fileName, root, library: true,
       relativePath: path.relative(root, target), isDirectory: false
     };
     const records = readDownloads();
     records.push(record);
     try { writeDownloads(records); }
     catch (error) { try { fs.unlinkSync(target); } catch {} throw error; }
+    onProgress(100, 'done');
+    return listDownloads();
+  }
+
+  async function installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress) {
+    const archivePath = path.join(targetDirectory, `.download-${crypto.randomUUID()}${ext}`);
+    const stageDirectory = path.join(targetDirectory, `.install-${crypto.randomUUID()}`);
+    const categoryName = LIBRARY_FOLDERS[item.category];
+    const matchesCategory = (value) => value.localeCompare(categoryName, undefined, { sensitivity: 'accent' }) === 0;
+    const folderName = cleanFileName(item.title || stem || 'Material');
+    const installIntoCategory = matchesCategory(stem) || matchesCategory(folderName);
+    const installedPaths = [];
+    let installedDirectory = null;
+    try {
+      await fetchFile(item.fileUrl, archivePath, onProgress);
+      onProgress(0, 'extracting');
+      fs.mkdirSync(stageDirectory, { recursive: false });
+      await extractArchive(archivePath, stageDirectory);
+      onProgress(0, 'installing');
+      const entries = fs.readdirSync(stageDirectory);
+      if (!entries.length) throw new Error('Archive is empty');
+      let sourceDirectory = stageDirectory;
+      if (entries.length === 1) {
+        const entry = entries[0];
+        const candidate = path.join(stageDirectory, entry);
+        if (fs.statSync(candidate).isDirectory() && [stem, folderName, categoryName].some((name) =>
+          entry.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)) sourceDirectory = candidate;
+      }
+      if (installIntoCategory) {
+        const categoryEntries = fs.readdirSync(sourceDirectory);
+        if (!categoryEntries.length) throw new Error('Archive is empty');
+        for (const entry of categoryEntries) {
+          if (fs.existsSync(path.join(targetDirectory, entry))) throw new Error('Material already exists in the library');
+        }
+        try {
+          for (const entry of categoryEntries) {
+            const target = path.join(targetDirectory, entry);
+            fs.renameSync(path.join(sourceDirectory, entry), target);
+            installedPaths.push(path.relative(root, target));
+          }
+        } catch (error) {
+          for (const relative of [...installedPaths].reverse()) {
+            try { fs.renameSync(path.resolve(root, relative), path.join(sourceDirectory, path.basename(relative))); } catch {}
+          }
+          installedPaths.length = 0;
+          throw error;
+        }
+      } else {
+        installedDirectory = path.join(targetDirectory, folderName);
+        if (fs.existsSync(installedDirectory)) throw new Error('Material already exists in the library');
+        fs.renameSync(sourceDirectory, installedDirectory);
+        installedPaths.push(path.relative(root, installedDirectory));
+      }
+      fs.unlinkSync(archivePath);
+      fs.rmSync(stageDirectory, { recursive: true, force: true });
+    } catch (error) {
+      try { fs.unlinkSync(archivePath); } catch {}
+      try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
+      if (error.message === 'RAR extractor is unavailable' || error.message === 'Archive is empty' || error.message === 'Material already exists in the library') throw error;
+      throw new Error(`Archive extraction failed: ${error.message}`);
+    }
+    const record = {
+      id: crypto.randomUUID(), itemId: item.id, title: item.title,
+      category: item.category, fileName: baseName, root, library: true,
+      relativePath: path.relative(root, installedDirectory || targetDirectory),
+      isDirectory: Boolean(installedDirectory),
+      ...(installIntoCategory ? { libraryRoot: true, ownedPaths: installedPaths } : {})
+    };
+    const draggableFiles = installedPaths.flatMap((relative) => {
+      const target = path.resolve(root, relative);
+      if (fs.statSync(target).isDirectory()) return findDraggableFiles(target);
+      return /\.(mid|midi|fst|fxp|fxb|vstpreset|adv|adg)$/i.test(target) ? [target] : [];
+    });
+    if (draggableFiles.length === 1) record.dragRelativePath = path.relative(root, draggableFiles[0]);
+    const records = readDownloads();
+    records.push(record);
+    try { writeDownloads(records); }
+    catch (error) {
+      for (const relative of installedPaths) {
+        try { fs.rmSync(path.resolve(root, relative), { recursive: true, force: true }); } catch {}
+      }
+      throw error;
+    }
+    onProgress(100, 'done');
     return listDownloads();
   }
 
@@ -569,12 +661,19 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
 
   function listDownloads() {
     return readDownloads().filter((record) => {
-      try { return fs.existsSync(downloadTarget(record)); }
+      try {
+        const target = downloadTarget(record);
+        if (Array.isArray(record.ownedPaths)) return record.ownedPaths.some((relative) => {
+          const owned = path.resolve(record.root, relative);
+          return owned.startsWith(`${target}${path.sep}`) && fs.existsSync(owned);
+        });
+        return fs.existsSync(target);
+      }
       catch { return false; }
     }).map((record) => ({
       id: record.id, itemId: record.itemId, title: record.title, category: record.category,
       fileName: record.fileName, isDirectory: record.isDirectory === true,
-      draggable: record.isDirectory ? typeof record.dragRelativePath === 'string' : record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)
+      draggable: typeof record.dragRelativePath === 'string' || (!record.isDirectory && !record.libraryRoot && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)))
     }));
   }
 
@@ -583,7 +682,14 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const record = records.find((item) => item.id === id);
     if (!record) throw new Error('Download not found');
     const target = downloadTarget(record);
-    if (fs.existsSync(target)) record.isDirectory ? fs.rmSync(target, { recursive: true, force: true }) : fs.unlinkSync(target);
+    if (Array.isArray(record.ownedPaths)) {
+      for (const relative of record.ownedPaths) {
+        const owned = path.resolve(record.root, relative);
+        if (owned.startsWith(`${target}${path.sep}`)) {
+          try { fs.rmSync(owned, { recursive: true, force: true }); } catch {}
+        }
+      }
+    } else if (fs.existsSync(target)) record.isDirectory ? fs.rmSync(target, { recursive: true, force: true }) : fs.unlinkSync(target);
     writeDownloads(records.filter((item) => item.id !== id));
     return listDownloads();
   }
@@ -592,14 +698,14 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const record = readDownloads().find((item) => item.id === id);
     if (!record) throw new Error('Download not found');
     const target = downloadTarget(record);
-    return record.isDirectory ? target : path.dirname(target);
+    return record.isDirectory || record.libraryRoot === true ? target : path.dirname(target);
   }
 
   function getDragFile(id) {
     const record = readDownloads().find((item) => item.id === id);
     if (!record) return null;
     const target = downloadTarget(record);
-    if (!record.isDirectory) {
+    if (!record.isDirectory && record.libraryRoot !== true) {
       return fs.statSync(target).isFile() && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)) ? target : null;
     }
     if (typeof record.dragRelativePath !== 'string') return null;
@@ -636,6 +742,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   }
 
   addDownloadRoots(downloadRoots);
+  ensureLibraryStructure();
   migrateLegacyDownloads();
   return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin, getFavorites, toggleFavorite };
 }

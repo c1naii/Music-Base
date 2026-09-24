@@ -63,15 +63,15 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.equal(downloaded.length, 1);
   assert.equal(downloaded[0].fileName, 'Kit.zip');
   assert.equal(downloaded[0].isDirectory, true);
-  const filePath = path.join(root, 'Music Base', 'DRUMKITS', 'Kit', 'loop.mid');
+  const filePath = path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Test Kit', 'loop.mid');
   assert.equal(fs.readFileSync(filePath, 'utf8'), 'MIDI bytes');
-  assert.equal(fs.existsSync(path.join(root, 'Music Base', 'DRUMKITS', 'Kit.zip')), false);
+  assert.equal(fs.existsSync(path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Kit.zip')), false);
   assert.equal(store.getDragFile(downloaded[0].id), filePath);
   assert.equal(store.getDownloadPath(downloaded[0].id), path.dirname(filePath));
   assert.equal(progress.at(-1), 100);
 
   assert.equal((await store.downloadItem(catalog.items[0].id)).length, 1);
-  assert.equal(fs.readdirSync(path.join(root, 'Music Base', 'DRUMKITS')).length, 1);
+  assert.equal(fs.readdirSync(path.join(root, 'Music Base', 'Library', 'Drum Kits')).length, 1);
   assert.deepEqual(store.toggleFavorite(catalog.items[0].id), [catalog.items[0].id]);
   assert.deepEqual(store.getFavorites(), [catalog.items[0].id]);
   assert.deepEqual(store.toggleFavorite(catalog.items[0].id), []);
@@ -79,6 +79,67 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.deepEqual(store.deleteDownload(downloaded[0].id), []);
   assert.equal(fs.existsSync(filePath), false);
   assert.equal(await store.checkAdmin(), false);
+});
+
+test('category archive installs into the shared Library without replacing existing files', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-library-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const item = {
+    id: '10000000-0000-4000-8000-000000000001', category: 'drumkits', title: 'Drum Kits', description: '',
+    fileName: 'Drum Kits.zip',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/Drum%20Kits.zip',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png'
+  };
+  const zip = zipFile('Drum Kits/Kicks/kick.wav', 'kick sample');
+  const library = path.join(root, 'Documents', 'Music Base', 'Library');
+  const drumKits = path.join(library, 'Drum Kits');
+  fs.mkdirSync(path.join(drumKits, 'Existing'), { recursive: true });
+  fs.writeFileSync(path.join(drumKits, 'Existing', 'keep.wav'), 'keep');
+  const store = createWarehouseService({
+    dataDirectory: path.join(root, 'Data'), downloadsDirectory: path.dirname(library),
+    fetchImpl: async (url) => String(url).startsWith('https://raw.githubusercontent.com/')
+      ? new Response(JSON.stringify({ schemaVersion: 1, items: [item] })) : new Response(zip)
+  });
+
+  const progress = [];
+  const downloaded = await store.downloadItem(item.id, (percent, phase) => progress.push({ percent, phase }));
+  assert.equal(fs.readFileSync(path.join(drumKits, 'Kicks', 'kick.wav'), 'utf8'), 'kick sample');
+  assert.equal(fs.readFileSync(path.join(drumKits, 'Existing', 'keep.wav'), 'utf8'), 'keep');
+  assert.deepEqual(fs.readdirSync(library).sort(), ['Banks', 'Drum Kits', 'MIDI', 'Plugins', 'Presets', 'Projects', 'Samples'].sort());
+  assert.ok(progress.some((entry) => entry.phase === 'extracting'));
+  assert.ok(progress.some((entry) => entry.phase === 'installing'));
+  assert.equal(progress.at(-1).phase, 'done');
+  assert.equal(downloaded.length, 1);
+
+  await store.downloadItem(item.id);
+  assert.equal(fs.readdirSync(drumKits).filter((name) => name === 'Kicks').length, 1);
+  store.deleteDownload(downloaded[0].id);
+  assert.equal(fs.existsSync(path.join(drumKits, 'Kicks')), false);
+  assert.equal(fs.readFileSync(path.join(drumKits, 'Existing', 'keep.wav'), 'utf8'), 'keep');
+});
+
+test('unsafe archive entries are rejected and existing library files stay untouched', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-archive-safety-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const item = {
+    id: '20000000-0000-4000-8000-000000000002', category: 'presets', title: 'Unsafe Preset', description: '',
+    fileName: 'Unsafe Preset.zip',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/unsafe.zip',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png'
+  };
+  const zip = zipFile('../outside.wav', 'do not install');
+  const base = path.join(root, 'Documents', 'Music Base');
+  const existingFile = path.join(base, 'Library', 'Presets', 'Existing.fst');
+  fs.mkdirSync(path.dirname(existingFile), { recursive: true });
+  fs.writeFileSync(existingFile, 'preserve me');
+  const store = createWarehouseService({ dataDirectory: path.join(root, 'Data'), downloadsDirectory: base,
+    fetchImpl: async (url) => String(url).startsWith('https://raw.githubusercontent.com/')
+      ? new Response(JSON.stringify({ schemaVersion: 1, items: [item] })) : new Response(zip) });
+
+  await assert.rejects(store.downloadItem(item.id));
+  assert.equal(fs.readFileSync(existingFile, 'utf8'), 'preserve me');
+  assert.equal(fs.existsSync(path.join(base, 'Library', 'outside.wav')), false);
+  assert.equal(store.listDownloads().length, 0);
 });
 
 test('interrupted bank downloads resume from the saved byte and finish once', async (t) => {
@@ -120,7 +181,7 @@ test('interrupted bank downloads resume from the saved byte and finish once', as
   assert.equal(resumeOffset, 8);
   assert.equal(progress.at(-1), 100);
   assert.equal(records.length, 1);
-  assert.deepEqual(fs.readFileSync(path.join(root, 'Music Base', 'BANKS', 'Bank.fxp')), bytes);
+  assert.deepEqual(fs.readFileSync(path.join(root, 'Music Base', 'Library', 'Banks', 'Bank.fxp')), bytes);
 });
 
 test('downloads follow the selected directory and DAW folder link points at it', async (t) => {

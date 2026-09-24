@@ -218,7 +218,7 @@ ipcMain.handle('warehouse-downloads', (event) => isMainWindow(event) ? warehouse
 ipcMain.handle('warehouse-favorites', (event) => isMainWindow(event) ? warehouseStore.getFavorites() : []);
 ipcMain.handle('warehouse-toggle-favorite', (event, id) => isMainWindow(event) ? warehouseStore.toggleFavorite(id) : []);
 ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id,
-  (percent) => { if (!event.sender.isDestroyed()) event.sender.send('warehouse-download-progress', { id, percent }); }) : null);
+  (percent, phase) => { if (!event.sender.isDestroyed()) event.sender.send('warehouse-download-progress', { id, percent, phase }); }) : null);
 ipcMain.handle('warehouse-delete-download', (event, id) => isMainWindow(event) ? warehouseStore.deleteDownload(id) : null);
 ipcMain.handle('warehouse-open-download', async (event, id) => {
   if (!isMainWindow(event)) return false;

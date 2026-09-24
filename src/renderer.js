@@ -112,26 +112,57 @@ function showWarehouseItem(id) {
   const record = warehouseDownloads.find((entry) => entry.itemId === id);
   const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
   download.type = 'button'; download.disabled = downloadProgress.has(id);
-  const progress = makeElement('div', 'warehouse-progress'); progress.hidden = true;
+  const progress = makeElement('div', 'warehouse-progress'); progress.hidden = true; progress.dataset.itemId = id;
   progress.innerHTML = '<span></span><b></b>';
   const fill = progress.querySelector('span'); const caption = progress.querySelector('b');
-  if (downloadProgress.has(id)) { progress.hidden = false; fill.style.width = `${downloadProgress.get(id)}%`; caption.textContent = `${downloadProgress.get(id)}%`; }
+  const currentProgress = downloadProgress.get(id);
+  if (currentProgress) {
+    progress.hidden = false;
+    progress.dataset.phase = currentProgress.phase;
+    fill.style.width = `${currentProgress.phase === 'downloading' ? currentProgress.percent : 100}%`;
+    caption.textContent = downloadPhaseText(currentProgress);
+  }
   const errorStatus = makeElement('p', 'warehouse-download-error');
   download.addEventListener('click', async () => {
     if (record) { await window.musicBase.openWarehouseDownload(record.id); return; }
     errorStatus.textContent = '';
-    download.disabled = true; progress.hidden = false; downloadProgress.set(id, 0); caption.textContent = '0%'; fill.style.width = '0%';
-    try { warehouseDownloads = await window.musicBase.downloadWarehouseItem(id); downloadProgress.delete(id); renderWarehouse(); showWarehouseItem(id); renderWarehouseDownloads(); }
+    download.disabled = true; progress.hidden = false;
+    setDownloadProgress(id, 0, 'downloading');
+    try {
+      warehouseDownloads = await window.musicBase.downloadWarehouseItem(id);
+      setDownloadProgress(id, 100, 'done');
+      renderWarehouse(); showWarehouseItem(id); renderWarehouseDownloads();
+      await new Promise((resolve) => setTimeout(resolve, 420));
+      downloadProgress.delete(id);
+      showWarehouseItem(id);
+    }
     catch { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = ui.downloadFailed; downloadProgress.delete(id); }
   });
   if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
   warehouseDetailView.append(back, coverWrap, title, description, download, progress, errorStatus);
 }
 
-window.musicBase.onWarehouseDownloadProgress(({ id, percent }) => {
-  downloadProgress.set(id, percent);
-  if (warehouseView === 'detail') { const bar = warehouseDetailView.querySelector('.warehouse-progress'); if (bar) { bar.hidden = false; bar.querySelector('span').style.width = `${percent}%`; bar.querySelector('b').textContent = `${percent}%`; } }
-});
+function downloadPhaseText(progress) {
+  if (progress.phase === 'extracting') return ui.extractingArchive;
+  if (progress.phase === 'installing') return ui.installingMaterials;
+  if (progress.phase === 'done') return ui.materialReady;
+  return `${ui.downloadingMaterial} · ${progress.percent}%`;
+}
+
+function setDownloadProgress(id, percent, phase = 'downloading') {
+  const progress = { percent, phase };
+  downloadProgress.set(id, progress);
+  if (warehouseView !== 'detail') return;
+  const activeItem = warehouseCatalog.items.find((item) => item.id === id);
+  const bar = warehouseDetailView.querySelector('.warehouse-progress');
+  if (!activeItem || !bar || bar.dataset.itemId !== id) return;
+  bar.hidden = false;
+  bar.dataset.phase = phase;
+  bar.querySelector('span').style.width = `${phase === 'downloading' ? percent : 100}%`;
+  bar.querySelector('b').textContent = downloadPhaseText(progress);
+}
+
+window.musicBase.onWarehouseDownloadProgress(({ id, percent, phase }) => setDownloadProgress(id, percent, phase));
 
 function renderWarehouseDownloads() {
   if (!warehouseDownloadsList) return;

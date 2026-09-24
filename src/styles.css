@@ -402,6 +402,9 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .warehouse-progress { position: relative; width: min(100%, 460px); height: 28px; margin-top: 16px; border: 1px solid #444; background: #111; }
 .warehouse-progress span { display: block; width: 0; height: 100%; background: #454545; transition: width .12s linear; }
 .warehouse-progress b { position: absolute; inset: 0; display: grid; place-items: center; color: #eee; font-size: 12px; font-weight: 400; }
+.warehouse-progress[data-phase="extracting"] span, .warehouse-progress[data-phase="installing"] span { background: linear-gradient(100deg, #292929 15%, #555 48%, #292929 80%); background-size: 220% 100%; animation: warehouse-progress-glide 1.6s ease-in-out infinite; }
+@keyframes warehouse-progress-glide { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) { .warehouse-progress[data-phase="extracting"] span, .warehouse-progress[data-phase="installing"] span { animation: none; } }
 .warehouse-header-actions { display: flex; gap: 9px; }
 
 .warehouse-empty-view { display: flex; flex-direction: column; min-height: calc(100% - 10px); }
