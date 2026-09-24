@@ -264,6 +264,10 @@ button:focus-visible { outline: 1px solid #c8c8c8; outline-offset: -4px; }
 .warehouse-item-download { padding: 9px 15px; border: 1px solid #666; border-radius: 3px; background: #191919; color: #eee; cursor: pointer; font: inherit; font-size: 13px; }
 .warehouse-item-download:hover { border-color: #aaa; background: #222; }
 .warehouse-item-download:disabled { color: #999; cursor: default; }
+.warehouse-download-cancel { min-height: 35px; margin-left: 11px; padding: 8px 11px; border: 1px solid #414141; border-radius: 3px; background: transparent; color: #aaa; cursor: pointer; font: inherit; font-size: 12px; }
+.warehouse-download-cancel:hover:not(:disabled) { border-color: #777; color: #eee; }
+.warehouse-download-cancel:disabled { cursor: default; opacity: .6; }
+.warehouse-download-cancel[hidden] { display: none; }
 .warehouse-item-download[draggable="true"] { cursor: grab; }
 .warehouse-item-download[draggable="true"]:active { cursor: grabbing; }
 .warehouse-download-list { margin-top: 18px; }

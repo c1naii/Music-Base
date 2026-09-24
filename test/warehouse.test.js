@@ -42,6 +42,27 @@ test('image preflight rejects content whose bytes do not match its extension', (
   assert.throws(() => validateImageFile(invalid), /does not match/);
 });
 
+test('warehouse download can be cancelled without leaving a partial file', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-cancel-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const item = {
+    id: '30000000-0000-4000-8000-000000000003', category: 'banks', title: 'Bank', description: '',
+    fileName: 'Bank.fxp',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/Bank.fxp',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png'
+  };
+  const store = createWarehouseService({
+    dataDirectory: path.join(root, 'Data'), downloadsDirectory: path.join(root, 'Music Base'),
+    fetchImpl: async (url) => String(url).startsWith('https://raw.githubusercontent.com/')
+      ? new Response(JSON.stringify({ schemaVersion: 1, items: [item] }))
+      : new Response(new ReadableStream({ start(controller) { controller.enqueue(Buffer.from('partial')); } }),
+        { headers: { 'content-length': '100' } })
+  });
+  await assert.rejects(store.downloadItem(item.id, () => store.cancelDownload(item.id)), { name: 'AbortError' });
+  assert.equal(store.listDownloads().length, 0);
+  assert.deepEqual(fs.readdirSync(path.join(root, 'Music Base', 'Library', 'Banks')), []);
+});
+
 function zipFile(name, content) {
   const fileName = Buffer.from(name);
   const data = Buffer.from(content);

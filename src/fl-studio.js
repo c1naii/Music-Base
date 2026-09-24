@@ -38,6 +38,7 @@ function createFlStudioInstallerService({ directory, fetchImpl = fetch, verifySi
   const root = path.resolve(directory);
   const metadataFile = path.join(root, 'fl-studio-installer.json');
   let activeDownload = null;
+  let activeController = null;
 
   function readMetadata() {
     try {
@@ -66,13 +67,16 @@ function createFlStudioInstallerService({ directory, fetchImpl = fetch, verifySi
 
   async function download(onProgress = () => {}) {
     if (activeDownload) return activeDownload;
+    const controller = new AbortController();
+    activeController = controller;
     activeDownload = (async () => {
       const existing = readRecord();
       if (existing) return status();
       const stale = readMetadata();
       if (stale) discardSavedInstaller(stale);
       fs.mkdirSync(root, { recursive: true });
-      const response = await fetchImpl(INSTALLER_URL);
+      const response = await fetchImpl(INSTALLER_URL, { signal: controller.signal });
+      controller.signal.throwIfAborted();
       if (!response.ok || !response.body) throw new Error(`Image-Line download failed (${response.status})`);
       const name = officialInstallerName(response.url);
       const expectedSize = Number(response.headers.get('content-length'));
@@ -95,9 +99,11 @@ function createFlStudioInstallerService({ directory, fetchImpl = fetch, verifySi
             if (percent !== lastPercent) { onProgress(percent); lastPercent = percent; }
             callback(null, chunk);
           }
-        }), fs.createWriteStream(temporary, { flags: 'wx' }));
+        }), fs.createWriteStream(temporary, { flags: 'wx' }), { signal: controller.signal });
+        controller.signal.throwIfAborted();
         if (received !== expectedSize) throw new Error('Installer download is incomplete');
         await verifySignature(temporary);
+        controller.signal.throwIfAborted();
         fs.linkSync(temporary, destination);
         try {
           const record = { name, size: received, sha256: hash.digest('hex') };
@@ -114,7 +120,13 @@ function createFlStudioInstallerService({ directory, fetchImpl = fetch, verifySi
       }
     })();
     try { return await activeDownload; }
-    finally { activeDownload = null; }
+    finally { activeDownload = null; activeController = null; }
+  }
+
+  function cancel() {
+    if (!activeController) return false;
+    activeController.abort();
+    return true;
   }
 
   async function open() {
@@ -137,7 +149,7 @@ function createFlStudioInstallerService({ directory, fetchImpl = fetch, verifySi
     return true;
   }
 
-  return { status, download, open };
+  return { status, download, cancel, open };
 }
 
 module.exports = { createFlStudioInstallerService, officialInstallerName, verifyImageLineSignature, INSTALLER_URL };

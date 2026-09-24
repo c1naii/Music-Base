@@ -161,7 +161,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   const downloadsIndex = downloadsIndexPath || path.join(dataDirectory, 'downloads.json');
   let currentDownloadsDirectory = path.resolve(downloadsDirectory);
   const favoritesPath = path.join(dataDirectory, 'warehouse-favorites.json');
-  const activeDownloads = new Set();
+  const activeDownloads = new Map();
   const knownDownloadRoots = new Set([currentDownloadsDirectory, ...downloadRoots.map((item) => path.resolve(item))]);
   fs.mkdirSync(dataDirectory, { recursive: true });
 
@@ -497,12 +497,20 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
 
   async function downloadItem(id, onProgress = () => {}) {
     if (activeDownloads.has(id)) throw new Error('Download already in progress');
-    activeDownloads.add(id);
-    try { return await performDownload(id, onProgress); }
+    const controller = new AbortController();
+    activeDownloads.set(id, controller);
+    try { return await performDownload(id, onProgress, controller.signal); }
     finally { activeDownloads.delete(id); }
   }
 
-  async function performDownload(id, onProgress) {
+  function cancelDownload(id) {
+    const controller = activeDownloads.get(id);
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  }
+
+  async function performDownload(id, onProgress, signal) {
     const prior = readDownloads().find((record) => record.itemId === id);
     if (prior) {
       try {
@@ -515,6 +523,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
       catch {}
     }
     const item = (await getCatalog()).items.find((entry) => entry.id === id);
+    signal.throwIfAborted();
     if (!item) throw new Error('Warehouse item not found');
     const root = currentDownloadsDirectory;
     const targetDirectory = libraryDirectory(item.category, root);
@@ -522,7 +531,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const ext = path.extname(baseName);
     const stem = path.basename(baseName, ext);
     const isArchive = ['.zip', '.rar'].includes(ext.toLowerCase());
-    if (isArchive) return installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress);
+    if (isArchive) return installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress, signal);
     let fileName = baseName;
     let target = path.join(targetDirectory, fileName);
     for (let suffix = 2; fs.existsSync(target); suffix += 1) {
@@ -531,7 +540,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     }
     const temporary = path.join(targetDirectory, `.download-${crypto.randomUUID()}${ext}`);
     try {
-      await fetchFile(item.fileUrl, temporary, onProgress);
+      await fetchFile(item.fileUrl, temporary, onProgress, signal);
+      signal.throwIfAborted();
       onProgress(0, 'installing');
       fs.renameSync(temporary, target);
     } catch (error) { try { fs.unlinkSync(temporary); } catch {} throw error; }
@@ -550,7 +560,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return listDownloads();
   }
 
-  async function installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress) {
+  async function installArchive(item, root, targetDirectory, baseName, stem, ext, onProgress, signal) {
     const archivePath = path.join(targetDirectory, `.download-${crypto.randomUUID()}${ext}`);
     const stageDirectory = path.join(targetDirectory, `.install-${crypto.randomUUID()}`);
     const categoryName = LIBRARY_FOLDERS[item.category];
@@ -560,10 +570,12 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const installedPaths = [];
     let installedDirectory = null;
     try {
-      await fetchFile(item.fileUrl, archivePath, onProgress);
+      await fetchFile(item.fileUrl, archivePath, onProgress, signal);
+      signal.throwIfAborted();
       onProgress(0, 'extracting');
       fs.mkdirSync(stageDirectory, { recursive: false });
       await extractArchive(archivePath, stageDirectory);
+      signal.throwIfAborted();
       onProgress(0, 'installing');
       const entries = fs.readdirSync(stageDirectory);
       if (!entries.length) throw new Error('Archive is empty');
@@ -604,7 +616,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     } catch (error) {
       try { fs.unlinkSync(archivePath); } catch {}
       try { fs.rmSync(stageDirectory, { recursive: true, force: true }); } catch {}
-      if (error.message === 'RAR extractor is unavailable' || error.message === 'Archive is empty' || error.message === 'Material already exists in the library') throw error;
+      if (error.name === 'AbortError' || error.message === 'RAR extractor is unavailable' || error.message === 'Archive is empty' || error.message === 'Material already exists in the library') throw error;
       throw new Error(`Archive extraction failed: ${error.message}`);
     }
     const record = {
@@ -635,15 +647,17 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     return listDownloads();
   }
 
-  async function fetchFile(url, target, onProgress) {
+  async function fetchFile(url, target, onProgress, signal) {
     let lastError;
     const maxAttempts = 10;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      signal.throwIfAborted();
       let offset = fs.existsSync(target) ? fs.statSync(target).size : 0;
       if (!offset && fs.existsSync(target)) fs.unlinkSync(target);
       try {
         const response = await fetchImpl(url, {
           redirect: 'follow',
+          signal,
           ...(offset ? { headers: { Range: `bytes=${offset}-` } } : {})
         });
         if (!response.ok || !response.body) throw new Error(`File download failed (${response.status})`);
@@ -665,11 +679,13 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
             callback(null, chunk);
           }
         });
-        await pipeline(Readable.fromWeb(response.body), meter, fs.createWriteStream(target, { flags: offset ? 'a' : 'wx' }));
+        await pipeline(Readable.fromWeb(response.body), meter, fs.createWriteStream(target, { flags: offset ? 'a' : 'wx' }), { signal });
+        signal.throwIfAborted();
         if (total && fs.statSync(target).size !== total) throw new Error('Incomplete download');
         onProgress(100);
         return;
       } catch (error) {
+        if (signal.aborted || error.name === 'AbortError') throw error;
         lastError = error;
         if (['EACCES', 'EPERM', 'ENOSPC'].includes(error.code)) break;
         if (attempt < maxAttempts - 1) await new Promise((resolve) => setTimeout(resolve, Math.min(2000, 250 * (attempt + 1))));
@@ -752,7 +768,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   addDownloadRoots(downloadRoots);
   ensureLibraryStructure();
   migrateLegacyDownloads();
-  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, verifyPin, getFavorites, toggleFavorite };
+  return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, cancelDownload, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, verifyPin, getFavorites, toggleFavorite };
 }
 
 function validateImageFile(filePath) {

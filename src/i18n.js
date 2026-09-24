@@ -574,3 +574,13 @@ Object.assign(window.musicI18n.uk.ui, {
   flStudioOpenError: 'Не вдалося відкрити інсталятор. Перевірте файл або завантажте його з офіційного сайту.',
   flStudioNotice: 'Якщо захист Windows зупинив файл, перевірте його цифровий підпис «Image Line» і джерело завантаження. Не вимикайте антивірус.'
 });
+
+Object.assign(window.musicI18n.ru.ui, {
+  cancelDownload: 'Отменить загрузку', cancellingDownload: 'Отмена…', downloadCancelled: 'Загрузка отменена.'
+});
+Object.assign(window.musicI18n.en.ui, {
+  cancelDownload: 'Cancel download', cancellingDownload: 'Cancelling…', downloadCancelled: 'Download cancelled.'
+});
+Object.assign(window.musicI18n.uk.ui, {
+  cancelDownload: 'Скасувати завантаження', cancellingDownload: 'Скасування…', downloadCancelled: 'Завантаження скасовано.'
+});

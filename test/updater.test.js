@@ -53,3 +53,22 @@ test('download failure allows another attempt', async () => {
   await updater.install();
   assert.equal(downloads, 2);
 });
+
+test('update download can be cancelled and retried', async () => {
+  const engine = new EventEmitter();
+  const messages = [];
+  let downloads = 0;
+  engine.downloadUpdate = (token) => {
+    downloads += 1;
+    if (downloads > 1) return Promise.resolve([]);
+    return token.createPromise((_resolve, _reject, onCancel) => onCancel(() => {}));
+  };
+  const updater = createUpdater(engine, (message) => messages.push(message));
+  engine.emit('update-available', { version: '0.7.6' });
+  const pending = updater.install();
+  assert.equal(updater.cancel(), true);
+  await pending;
+  assert.equal(messages.at(-1).state, 'available');
+  await updater.install();
+  assert.equal(downloads, 2);
+});

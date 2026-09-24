@@ -1,7 +1,10 @@
+const { CancellationToken } = require('electron-updater');
+
 function createUpdater(autoUpdater, publish, schedule = setTimeout) {
   let state = 'idle';
   let checking = false;
   let availableVersion = '';
+  let downloadToken = null;
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
@@ -54,19 +57,32 @@ function createUpdater(autoUpdater, publish, schedule = setTimeout) {
   async function install() {
     if (state !== 'available') return;
     state = 'downloading';
+    const token = new CancellationToken();
+    downloadToken = token;
     publish({ state, version: availableVersion, percent: 0 });
     try {
-      await autoUpdater.downloadUpdate();
+      await autoUpdater.downloadUpdate(token);
     } catch (error) {
       if (state === 'downloading') {
         console.error('Music Base update download:', error);
         state = 'available';
         publish({ state: 'error', version: availableVersion });
       }
+    } finally {
+      if (downloadToken === token) downloadToken = null;
     }
   }
 
-  return { check, install };
+  function cancel() {
+    if (state !== 'downloading' || !downloadToken) return false;
+    state = 'available';
+    downloadToken.cancel();
+    downloadToken = null;
+    publish({ state: 'available', version: availableVersion });
+    return true;
+  }
+
+  return { check, install, cancel };
 }
 
 module.exports = { createUpdater };

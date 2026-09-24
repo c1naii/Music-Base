@@ -197,15 +197,19 @@ ipcMain.on('window-control', (event, action) => {
 ipcMain.handle('app-version', () => app.getVersion());
 
 ipcMain.handle('fl-studio-status', (event) => isMainWindow(event) ? flStudioInstaller.status() : null);
-ipcMain.handle('fl-studio-download', (event) => {
+ipcMain.handle('fl-studio-download', async (event) => {
   if (!isMainWindow(event)) return null;
-  return flStudioInstaller.download((percent) => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('fl-studio-download-progress', percent);
-  });
+  try {
+    return await flStudioInstaller.download((percent) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('fl-studio-download-progress', percent);
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') return { cancelled: true };
+    throw error;
+  }
 });
+ipcMain.handle('fl-studio-cancel', (event) => isMainWindow(event) ? flStudioInstaller.cancel() : false);
 ipcMain.handle('fl-studio-open', (event) => isMainWindow(event) ? flStudioInstaller.open() : null);
-ipcMain.handle('fl-studio-official-page', (event) => isMainWindow(event) ?
-  shell.openExternal('https://www.image-line.com/fl-studio/download?os=windows') : null);
 
 function isMainWindow(event) {
   return BrowserWindow.fromWebContents(event.sender) === mainWindow;
@@ -248,8 +252,17 @@ ipcMain.handle('warehouse-delete-item', async (event, id) => {
 ipcMain.handle('warehouse-downloads', (event) => isMainWindow(event) ? warehouseStore.listDownloads() : null);
 ipcMain.handle('warehouse-favorites', (event) => isMainWindow(event) ? warehouseStore.getFavorites() : []);
 ipcMain.handle('warehouse-toggle-favorite', (event, id) => isMainWindow(event) ? warehouseStore.toggleFavorite(id) : []);
-ipcMain.handle('warehouse-download-item', (event, id) => isMainWindow(event) ? warehouseStore.downloadItem(id,
-  (percent, phase) => { if (!event.sender.isDestroyed()) event.sender.send('warehouse-download-progress', { id, percent, phase }); }) : null);
+ipcMain.handle('warehouse-download-item', async (event, id) => {
+  if (!isMainWindow(event)) return null;
+  try {
+    return await warehouseStore.downloadItem(id,
+      (percent, phase) => { if (!event.sender.isDestroyed()) event.sender.send('warehouse-download-progress', { id, percent, phase }); });
+  } catch (error) {
+    if (error.name === 'AbortError') return { cancelled: true };
+    throw error;
+  }
+});
+ipcMain.handle('warehouse-cancel-download', (event, id) => isMainWindow(event) ? warehouseStore.cancelDownload(id) : false);
 ipcMain.handle('warehouse-delete-download', (event, id) => isMainWindow(event) ? warehouseStore.deleteDownload(id) : null);
 ipcMain.handle('warehouse-open-download', async (event, id) => {
   if (!isMainWindow(event)) return false;
@@ -330,6 +343,9 @@ for (const [channel, method] of [['notes-list', 'list'], ['notes-create', 'creat
 ipcMain.on('install-update', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window === mainWindow) updater?.install();
+});
+ipcMain.on('cancel-update', (event) => {
+  if (isMainWindow(event)) updater?.cancel();
 });
 
 app.whenReady().then(() => {

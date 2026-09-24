@@ -20,6 +20,7 @@ const warehouseDetailView = document.getElementById('warehouse-detail-view');
 const flStudioEntry = document.getElementById('fl-studio-entry');
 const flStudioView = document.getElementById('fl-studio-view');
 const flStudioDownloadButton = document.getElementById('fl-studio-download');
+const flStudioCancelButton = document.getElementById('fl-studio-cancel');
 const flStudioOpenButton = document.getElementById('fl-studio-open');
 const flStudioProgress = document.getElementById('fl-studio-progress');
 const flStudioProgressFill = document.getElementById('fl-studio-progress-fill');
@@ -70,6 +71,7 @@ function renderFlStudio() {
   flStudioEntry.hidden = warehouseView !== 'categories';
   flStudioView.hidden = warehouseView !== 'fl-studio';
   flStudioDownloadButton.hidden = flStudioInstaller.downloaded;
+  flStudioCancelButton.hidden = !flStudioDownloading;
   flStudioOpenButton.hidden = !flStudioInstaller.downloaded;
   flStudioDownloadButton.disabled = flStudioDownloading;
   flStudioOpenButton.disabled = flStudioOpening;
@@ -154,12 +156,15 @@ function showWarehouseItem(id) {
   const itemInfo = makeItemInfo(item.fileSize, item.supportedDaws);
   const description = makeElement('p', 'warehouse-detail-description', item.description || '');
   const record = warehouseDownloads.find((entry) => entry.itemId === id);
+  const currentProgress = downloadProgress.get(id);
   const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
   download.type = 'button'; download.disabled = downloadProgress.has(id);
+  const cancel = makeElement('button', 'warehouse-download-cancel', ui.cancelDownload);
+  cancel.type = 'button';
+  cancel.hidden = !currentProgress || currentProgress.phase !== 'downloading';
   const progress = makeElement('div', 'warehouse-progress'); progress.hidden = true; progress.dataset.itemId = id;
   progress.innerHTML = '<span></span><b></b>';
   const fill = progress.querySelector('span'); const caption = progress.querySelector('b');
-  const currentProgress = downloadProgress.get(id);
   if (currentProgress) {
     progress.hidden = false;
     progress.dataset.phase = currentProgress.phase;
@@ -171,19 +176,34 @@ function showWarehouseItem(id) {
     if (record) { await window.musicBase.openWarehouseDownload(record.id); return; }
     errorStatus.textContent = '';
     download.disabled = true; progress.hidden = false;
+    cancel.hidden = false;
     setDownloadProgress(id, 0, 'downloading');
     try {
-      warehouseDownloads = await window.musicBase.downloadWarehouseItem(id);
+      const result = await window.musicBase.downloadWarehouseItem(id);
+      if (result?.cancelled) {
+        downloadProgress.delete(id);
+        download.disabled = false;
+        cancel.hidden = true;
+        progress.hidden = true;
+        errorStatus.textContent = ui.downloadCancelled;
+        return;
+      }
+      warehouseDownloads = result;
       setDownloadProgress(id, 100, 'done');
       renderWarehouse(); showWarehouseItem(id); renderWarehouseDownloads();
       await new Promise((resolve) => setTimeout(resolve, 420));
       downloadProgress.delete(id);
       showWarehouseItem(id);
     }
-    catch (error) { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = `${ui.downloadFailed} ${String(error?.message || '').slice(0, 180)}`.trim(); downloadProgress.delete(id); }
+    catch (error) { download.disabled = false; download.textContent = ui.downloadItem; cancel.hidden = true; progress.hidden = true; errorStatus.textContent = `${ui.downloadFailed} ${String(error?.message || '').slice(0, 180)}`.trim(); downloadProgress.delete(id); }
+  });
+  cancel.addEventListener('click', async () => {
+    cancel.disabled = true;
+    cancel.textContent = ui.cancellingDownload;
+    await window.musicBase.cancelWarehouseDownload(id);
   });
   if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
-  warehouseDetailView.append(back, coverWrap, title, published, genres, itemInfo, description, download, progress, errorStatus);
+  warehouseDetailView.append(back, coverWrap, title, published, genres, itemInfo, description, download, cancel, progress, errorStatus);
 }
 
 const genreIcons = {
@@ -305,6 +325,8 @@ function setDownloadProgress(id, percent, phase = 'downloading') {
   bar.dataset.phase = phase;
   bar.querySelector('span').style.width = `${phase === 'downloading' ? percent : 100}%`;
   bar.querySelector('b').textContent = downloadPhaseText(progress);
+  const cancel = warehouseDetailView.querySelector('.warehouse-download-cancel');
+  if (cancel) cancel.hidden = phase !== 'downloading';
 }
 
 window.musicBase.onWarehouseDownloadProgress(({ id, percent, phase }) => setDownloadProgress(id, percent, phase));
@@ -608,16 +630,29 @@ document.getElementById('warehouse-favorites').addEventListener('click', showWar
 document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
 flStudioEntry.addEventListener('click', showFlStudio);
 document.getElementById('fl-studio-back').addEventListener('click', showWarehouseHome);
-document.getElementById('fl-studio-source').addEventListener('click', () => window.musicBase.openFlStudioOfficialPage());
+flStudioCancelButton.addEventListener('click', async () => {
+  flStudioCancelButton.disabled = true;
+  flStudioCancelButton.textContent = ui.cancellingDownload;
+  await window.musicBase.cancelFlStudioInstaller();
+});
 flStudioDownloadButton.addEventListener('click', async () => {
   if (flStudioDownloading) return;
   flStudioDownloading = true;
   flStudioPercent = 0;
   flStudioError = '';
   renderFlStudio();
-  try { flStudioInstaller = await window.musicBase.downloadFlStudioInstaller(); }
+  try {
+    const result = await window.musicBase.downloadFlStudioInstaller();
+    if (result?.cancelled) flStudioError = ui.downloadCancelled;
+    else flStudioInstaller = result;
+  }
   catch (error) { console.error('FL Studio download:', error); flStudioError = ui.flStudioDownloadError; }
-  finally { flStudioDownloading = false; renderFlStudio(); }
+  finally {
+    flStudioDownloading = false;
+    flStudioCancelButton.disabled = false;
+    flStudioCancelButton.textContent = ui.cancelDownload;
+    renderFlStudio();
+  }
 });
 flStudioOpenButton.addEventListener('click', async () => {
   if (flStudioOpening) return;
@@ -991,8 +1026,8 @@ function renderUpdateStatus(status) {
     updateProgress.setAttribute('aria-valuenow', String(percent));
     updateProgressFill.style.width = `${percent}%`;
     updateProgressCaption.textContent = `${ui.downloadProgress} · ${percent}%`;
-    updateButton.textContent = ui.loading;
-    updateButton.disabled = true;
+    updateButton.textContent = ui.cancelDownload;
+    updateButton.disabled = false;
     updateClose.disabled = true;
     updatePanel.hidden = false;
   } else if (status.state === 'installing') {
@@ -1306,7 +1341,10 @@ window.musicBase.onUpdateStatus((status) => {
   renderUpdateStatus(status);
 });
 
-updateButton.addEventListener('click', () => window.musicBase.installUpdate());
+updateButton.addEventListener('click', () => {
+  if (currentUpdateStatus?.state === 'downloading') window.musicBase.cancelUpdate();
+  else window.musicBase.installUpdate();
+});
 updateClose.addEventListener('click', () => {
   updateDismissed = true;
   updatePanel.hidden = true;

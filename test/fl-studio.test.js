@@ -58,3 +58,22 @@ test('FL Studio installer rejects other servers and an invalid signature', async
   assert.equal(service.status().downloaded, false);
   assert.deepEqual(fs.readdirSync(directory).filter((name) => name.endsWith('.part') || name.endsWith('.exe')), []);
 });
+
+test('FL Studio installer download can be cancelled and leaves no partial file', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'music-base-fl-cancel-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  let service;
+  const serviceOptions = {
+    directory,
+    fetchImpl: async () => ({
+      ...response(Buffer.from('partial')),
+      headers: new Headers({ 'content-length': '100' }),
+      body: new ReadableStream({ start(controller) { controller.enqueue(Buffer.from('partial')); } })
+    }),
+    verifySignature: async () => {}, openPath: async () => ''
+  };
+  service = createFlStudioInstallerService(serviceOptions);
+  await assert.rejects(service.download(() => service.cancel()), { name: 'AbortError' });
+  assert.equal(service.status().downloaded, false);
+  assert.deepEqual(fs.readdirSync(directory), []);
+});
