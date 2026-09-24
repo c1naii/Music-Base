@@ -4,7 +4,20 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { createWarehouseService, cleanFileName, validateCategory } = require('../src/warehouse');
+const { createWarehouseService, cleanFileName, validateCategory, parseCatalog } = require('../src/warehouse');
+
+test('catalog keeps publication dates and only supported genres', () => {
+  const item = {
+    id: '30bdfc4a-cc67-41fe-8c9d-bc5070c84c62', category: 'drumkits', title: 'Kit', description: '', fileName: 'kit.zip',
+    fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/kit.zip',
+    imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/test/cover.png',
+    publishedAt: '2026-09-24', genres: ['phonk', 'funk', 'not-a-genre']
+  };
+  const parsed = parseCatalog({ schemaVersion: 1, items: [item] }).items[0];
+  assert.equal(parsed.publishedAt, '2026-09-24');
+  assert.deepEqual(parsed.genres, ['phonk', 'funk']);
+  assert.equal(parseCatalog({ schemaVersion: 1, items: [{ ...item, publishedAt: '2026-02-31' }] }).items[0].publishedAt, '');
+});
 
 function zipFile(name, content) {
   const fileName = Buffer.from(name);
@@ -43,7 +56,8 @@ test('ZIP downloads are extracted into their category and can be fully removed',
       description: 'Local test download',
       fileName: 'Kit.zip',
       fileUrl: 'https://github.com/c1naii/Music-Base/releases/download/v0.5.1/kit.zip',
-      imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/v0.5.1/cover.png'
+      imageUrl: 'https://github.com/c1naii/Music-Base/releases/download/v0.5.1/cover.png',
+      publishedAt: '2026-09-24', genres: ['hip-hop', 'funk']
     }]
   };
   const fetchImpl = async (url) => {
@@ -63,6 +77,8 @@ test('ZIP downloads are extracted into their category and can be fully removed',
   assert.equal(downloaded.length, 1);
   assert.equal(downloaded[0].fileName, 'Kit.zip');
   assert.equal(downloaded[0].isDirectory, true);
+  assert.equal(downloaded[0].publishedAt, '2026-09-24');
+  assert.deepEqual(downloaded[0].genres, ['hip-hop', 'funk']);
   const filePath = path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Test Kit', 'loop.mid');
   assert.equal(fs.readFileSync(filePath, 'utf8'), 'MIDI bytes');
   assert.equal(fs.existsSync(path.join(root, 'Music Base', 'Library', 'Drum Kits', 'Kit.zip')), false);

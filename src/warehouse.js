@@ -27,6 +27,7 @@ const LIBRARY_FOLDERS = Object.freeze({
   drumkits: 'Drum Kits', plugins: 'Plugins', projects: 'Projects', presets: 'Presets',
   banks: 'Banks', samples: 'Samples', midi: 'MIDI'
 });
+const GENRES = Object.freeze(['pop', 'hip-hop', 'rock', 'electronic', 'rnb', 'funk', 'phonk', 'brazilian-phonk', 'ambient', 'jazz']);
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
@@ -77,9 +78,17 @@ function safePublicItem(item) {
       imageUrl: imageUrl.href,
       ...(Number.isInteger(item.fileAssetId) ? { fileAssetId: item.fileAssetId } : {}),
       ...(Number.isInteger(item.imageAssetId) ? { imageAssetId: item.imageAssetId } : {}),
-      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : ''
+      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : '',
+      publishedAt: isDateOnly(item.publishedAt) ? item.publishedAt : (isDateOnly(item.createdAt) ? item.createdAt : (typeof item.updatedAt === 'string' && isDateOnly(item.updatedAt.slice(0, 10)) ? item.updatedAt.slice(0, 10) : '')),
+      genres: Array.isArray(item.genres) ? [...new Set(item.genres.filter((genre) => GENRES.includes(genre)))] : []
     };
   } catch { return null; }
+}
+
+function isDateOnly(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 
 function parseCatalog(value) {
@@ -402,6 +411,9 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const category = validateCategory(input?.category);
     const title = validateText(input?.title, 'title', 120);
     const description = typeof input?.description === 'string' ? input.description.trim().slice(0, 5000) : '';
+    const requestedDate = input?.publishedAt;
+    if (requestedDate !== undefined && requestedDate !== '' && !isDateOnly(requestedDate)) throw new Error('Invalid publication date');
+    if (input?.genres !== undefined && (!Array.isArray(input.genres) || input.genres.some((genre) => !GENRES.includes(genre)))) throw new Error('Invalid material genres');
     const id = typeof input?.id === 'string' && /^[a-f0-9-]{36}$/i.test(input.id) ? input.id : crypto.randomUUID();
     const { catalog, sha } = await currentCatalog(token);
     const old = catalog.items.find((item) => item.id === id);
@@ -423,6 +435,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const imageAsset = assets.find((asset) => asset.image);
     const next = {
       id, category, title, description,
+      publishedAt: requestedDate || old?.publishedAt || new Date().toISOString().slice(0, 10),
+      genres: [...new Set(input?.genres || old?.genres || [])],
       fileName: fileAsset?.name || old.fileName,
       fileUrl: fileAsset?.url || old.fileUrl,
       imageUrl: imageAsset?.url || old.imageUrl,
@@ -523,6 +537,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
       category: item.category, fileName, root, library: true,
+      publishedAt: item.publishedAt, genres: item.genres,
       relativePath: path.relative(root, target), isDirectory: false
     };
     const records = readDownloads();
@@ -593,6 +608,7 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     const record = {
       id: crypto.randomUUID(), itemId: item.id, title: item.title,
       category: item.category, fileName: baseName, root, library: true,
+      publishedAt: item.publishedAt, genres: item.genres,
       relativePath: path.relative(root, installedDirectory || targetDirectory),
       isDirectory: Boolean(installedDirectory),
       ...(installIntoCategory ? { libraryRoot: true, ownedPaths: installedPaths } : {})
@@ -673,6 +689,8 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
     }).map((record) => ({
       id: record.id, itemId: record.itemId, title: record.title, category: record.category,
       fileName: record.fileName, isDirectory: record.isDirectory === true,
+      publishedAt: isDateOnly(record.publishedAt) ? record.publishedAt : '',
+      genres: Array.isArray(record.genres) ? record.genres.filter((genre) => GENRES.includes(genre)) : [],
       draggable: typeof record.dragRelativePath === 'string' || (!record.isDirectory && !record.libraryRoot && (record.category === 'presets' || /\.(mid|midi)$/i.test(record.fileName)))
     }));
   }
@@ -747,4 +765,4 @@ function createWarehouseService({ dataDirectory, downloadsDirectory, downloadsIn
   return { checkAdmin, getCatalog, saveItem, deleteItem, downloadItem, listDownloads, deleteDownload, getDownloadPath, getDragFile, setDownloadsDirectory, integrateWithDaw, verifyPin, getFavorites, toggleFavorite };
 }
 
-module.exports = { createWarehouseService, CATEGORIES, parseCatalog, validateCategory, cleanFileName };
+module.exports = { createWarehouseService, CATEGORIES, GENRES, parseCatalog, validateCategory, cleanFileName };

@@ -499,3 +499,19 @@ window.musicI18n = {
     }
   }
 };
+
+Object.assign(window.musicI18n.ru.ui, {
+  genres: 'Жанры', publicationDate: 'Дата публикации материала', publishedToday: 'Опубликовано сегодня', published: 'Опубликован:', relativeToday: 'Сегодня',
+  genre_pop: 'Поп', genre_hip_hop: 'Хип-хоп', genre_rock: 'Рок', genre_electronic: 'Электронная музыка', genre_rnb: 'R&B',
+  genre_funk: 'Фанк', genre_phonk: 'Фонк', genre_brazilian_phonk: 'Бразильский фонк', genre_ambient: 'Эмбиент', genre_jazz: 'Джаз'
+});
+Object.assign(window.musicI18n.en.ui, {
+  genres: 'Genres', publicationDate: 'Publication date', publishedToday: 'Published today', published: 'Published:', relativeToday: 'Today',
+  genre_pop: 'Pop', genre_hip_hop: 'Hip-hop', genre_rock: 'Rock', genre_electronic: 'Electronic music', genre_rnb: 'R&B',
+  genre_funk: 'Funk', genre_phonk: 'Phonk', genre_brazilian_phonk: 'Brazilian Phonk', genre_ambient: 'Ambient', genre_jazz: 'Jazz'
+});
+Object.assign(window.musicI18n.uk.ui, {
+  genres: 'Жанри', publicationDate: 'Дата публікації матеріалу', publishedToday: 'Опубліковано сьогодні', published: 'Опубліковано:', relativeToday: 'Сьогодні',
+  genre_pop: 'Поп', genre_hip_hop: 'Хіп-хоп', genre_rock: 'Рок', genre_electronic: 'Електронна музика', genre_rnb: 'R&B',
+  genre_funk: 'Фанк', genre_phonk: 'Фонк', genre_brazilian_phonk: 'Бразильський фонк', genre_ambient: 'Ембієнт', genre_jazz: 'Джаз'
+});

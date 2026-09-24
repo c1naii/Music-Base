@@ -25,7 +25,7 @@ let warehouseAdminUnlocked = false;
 function createWindow(options, page, query) {
   const window = new BrowserWindow({
     backgroundColor: '#080808',
-    icon: path.join(__dirname, '..', 'assets', 'sigil.png'),
+    icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
     frame: false,
     show: false,
     autoHideMenuBar: true,
@@ -230,7 +230,7 @@ ipcMain.on('warehouse-start-drag', (event, id) => {
   if (!isMainWindow(event)) return;
   try {
     const file = warehouseStore.getDragFile(id);
-    if (file) event.sender.startDrag({ file, icon: path.join(__dirname, '..', 'assets', 'sigil.png') });
+    if (file) event.sender.startDrag({ file, icon: path.join(__dirname, '..', 'assets', 'icon.ico') });
   } catch {}
 });
 

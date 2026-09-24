@@ -9,12 +9,20 @@ let library = baseLibrary;
 let libraryLoaded = false;
 let transitionTimer;
 const warehouseCategories = ['drumkits', 'plugins', 'projects', 'presets', 'banks'];
+const genreIds = ['pop', 'hip-hop', 'rock', 'electronic', 'rnb', 'funk', 'phonk', 'brazilian-phonk', 'ambient', 'jazz'];
+const selectedGenres = new Set();
+const selectedAdminGenres = new Set();
 const warehouseCategoryList = document.getElementById('warehouse-categories');
 const warehouseEmptyView = document.getElementById('warehouse-empty-view');
 const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
 const warehouseDetailView = document.getElementById('warehouse-detail-view');
 const warehouseEmptyTitle = document.getElementById('warehouse-empty-title');
 const warehouseItemsView = document.getElementById('warehouse-items');
+const genreFilter = document.getElementById('genre-filter');
+const genreFilterTrigger = document.getElementById('genre-filter-trigger');
+const genreFilterOptions = document.getElementById('genre-filter-options');
+const adminPublishedAt = document.getElementById('admin-published-at');
+const adminGenres = document.getElementById('admin-genres');
 const warehouseDownloadsList = document.getElementById('warehouse-downloads-list');
 const warehouseDownloadsEmpty = document.getElementById('warehouse-downloads-empty');
 const warehouseAdminTrigger = document.getElementById('warehouse-admin-trigger');
@@ -51,6 +59,8 @@ function renderWarehouse() {
   warehouseDetailView.hidden = warehouseView !== 'detail';
   if (currentWarehouseCategory) warehouseEmptyTitle.textContent = ui[currentWarehouseCategory];
   else if (favoriteFilter) warehouseEmptyTitle.textContent = ui.favorites;
+  if (genreFilter) genreFilter.hidden = warehouseView !== 'category';
+  renderGenreChoices();
   renderWarehouseItems();
   renderWarehouseDownloads();
 }
@@ -58,7 +68,8 @@ function renderWarehouse() {
 function renderWarehouseItems() {
   warehouseItemsView.replaceChildren();
   if (warehouseView !== 'category') return;
-  const items = warehouseCatalog.items.filter((item) => favoriteFilter ? warehouseFavorites.includes(item.id) : item.category === currentWarehouseCategory);
+  const items = warehouseCatalog.items.filter((item) => (favoriteFilter ? warehouseFavorites.includes(item.id) : item.category === currentWarehouseCategory) &&
+    (!selectedGenres.size || (item.genres || []).some((genre) => selectedGenres.has(genre))));
   if (!items.length) {
     warehouseItemsView.classList.add('is-empty');
     const empty = makeElement('div', 'warehouse-empty-state');
@@ -85,7 +96,7 @@ function renderWarehouseItems() {
     heart.addEventListener('click', async (event) => { event.stopPropagation(); warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(item.id); renderWarehouseItems(); });
     cover.append(image, heart);
     const title = makeElement('span', 'warehouse-item-title', item.title);
-    card.append(cover, title);
+    card.append(cover, title, makePublicationLabel(item.publishedAt), makeGenreChips(item.genres));
     warehouseItemsView.append(card);
   }
 }
@@ -108,6 +119,8 @@ function showWarehouseItem(id) {
   favorite.addEventListener('click', async () => { warehouseFavorites = await window.musicBase.toggleWarehouseFavorite(id); showWarehouseItem(id); });
   coverWrap.append(cover, favorite);
   const title = makeElement('h2', 'warehouse-detail-title', item.title);
+  const published = makePublicationLabel(item.publishedAt);
+  const genres = makeGenreChips(item.genres);
   const description = makeElement('p', 'warehouse-detail-description', item.description || '');
   const record = warehouseDownloads.find((entry) => entry.itemId === id);
   const download = makeElement('button', 'warehouse-item-download', record ? ui.downloadDone : ui.downloadItem);
@@ -139,7 +152,80 @@ function showWarehouseItem(id) {
     catch { download.disabled = false; download.textContent = ui.downloadItem; progress.hidden = true; errorStatus.textContent = ui.downloadFailed; downloadProgress.delete(id); }
   });
   if (record?.draggable) { download.draggable = true; download.title = ui.dragToDaw; download.addEventListener('dragstart', (event) => { event.preventDefault(); window.musicBase.startWarehouseDrag(record.id); }); }
-  warehouseDetailView.append(back, coverWrap, title, description, download, progress, errorStatus);
+  warehouseDetailView.append(back, coverWrap, title, published, genres, description, download, progress, errorStatus);
+}
+
+const genreIcons = {
+  pop: '<path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/>',
+  'hip-hop': '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4v2m8 6h-2M12 20v-2m-8-6h2"/>',
+  rock: '<path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/>',
+  electronic: '<path d="M2 12h4l2-6 4 12 2-7 2 3h6"/>',
+  rnb: '<path d="M9 18V5l11-2v13"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/>',
+  funk: '<path d="M3 8c3-5 6 5 9 0s6 5 9 0M3 16c3-5 6 5 9 0s6 5 9 0"/>',
+  phonk: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="10" cy="17" r="1"/>',
+  'brazilian-phonk': '<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1"/>',
+  ambient: '<path d="M3 17c2.5-3 5.5-3 8 0s5.5 3 10 0M4 12c2-2 4-2 6 0m4 0c2-2 4-2 6 0"/><circle cx="12" cy="6" r="2"/>',
+  jazz: '<path d="M12 3v11.5a3.5 3.5 0 1 1-2-3.16V6l8-2v9.5a3.5 3.5 0 1 1-2-3.16V2l-4 1Z"/>'
+};
+
+function genreIcon(id) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = genreIcons[id] || '';
+  return svg;
+}
+
+function genreLabel(id) { return ui[`genre_${id.replaceAll('-', '_')}`] || id; }
+
+function renderGenreChoices() {
+  if (!genreFilterOptions || !adminGenres) return;
+  genreFilterOptions.replaceChildren();
+  adminGenres.replaceChildren();
+  for (const id of genreIds) {
+    const filterLabel = makeElement('label', 'genre-option');
+    const filterCheck = document.createElement('input');
+    filterCheck.type = 'checkbox'; filterCheck.checked = selectedGenres.has(id); filterCheck.value = id;
+    filterCheck.addEventListener('change', () => { filterCheck.checked ? selectedGenres.add(id) : selectedGenres.delete(id); renderWarehouseItems(); });
+    filterLabel.append(filterCheck, genreIcon(id), makeElement('span', '', genreLabel(id)));
+    genreFilterOptions.append(filterLabel);
+    const adminLabel = makeElement('label', 'admin-genre-option');
+    const adminCheck = document.createElement('input'); adminCheck.type = 'checkbox'; adminCheck.value = id; adminCheck.checked = selectedAdminGenres.has(id);
+    adminCheck.addEventListener('change', () => { adminCheck.checked ? selectedAdminGenres.add(id) : selectedAdminGenres.delete(id); });
+    adminLabel.append(adminCheck, genreIcon(id), makeElement('span', '', genreLabel(id)));
+    adminGenres.append(adminLabel);
+  }
+}
+
+function publicationText(dateValue) {
+  if (!dateValue) return '';
+  const parsed = new Date(`${dateValue}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.valueOf())) return '';
+  const today = new Date();
+  const publishedDay = Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+  const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = Math.max(0, Math.floor((todayDay - publishedDay) / 86400000));
+  if (days === 0) return ui.relativeToday;
+  if (days < 30) return new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(-days, 'day');
+  const months = Math.max(1, (today.getFullYear() - parsed.getUTCFullYear()) * 12 + today.getMonth() - parsed.getUTCMonth());
+  if (months < 12) return new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(-months, 'month');
+  return new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(-Math.floor(months / 12), 'year');
+}
+
+function makePublicationLabel(date) {
+  const relative = publicationText(date);
+  return makeElement('span', 'warehouse-published', relative ? `${ui.published} ${relative}` : '');
+}
+
+function makeGenreChips(genres = []) {
+  const row = makeElement('div', 'warehouse-genre-list');
+  for (const id of genreIds.filter((genre) => (genres || []).includes(genre))) {
+    const chip = makeElement('span', 'warehouse-genre-chip');
+    chip.append(genreIcon(id), makeElement('span', '', genreLabel(id)));
+    row.append(chip);
+  }
+  row.hidden = !row.childElementCount;
+  return row;
 }
 
 function downloadPhaseText(progress) {
@@ -173,6 +259,7 @@ function renderWarehouseDownloads() {
     const row = makeElement('div', 'warehouse-download-row');
     const details = makeElement('div', 'warehouse-download-details');
     details.append(makeElement('span', 'warehouse-download-title', file.title));
+    details.append(makePublicationLabel(file.publishedAt), makeGenreChips(file.genres));
     details.append(makeElement('span', 'warehouse-download-filename', `${ui[file.category]} · ${file.fileName}`));
     row.append(details, makeDownloadActions(file));
     warehouseDownloadsList.append(row);
@@ -265,11 +352,19 @@ function renderAdminList() {
   }
 }
 
+function localDateString(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function resetAdminForm() {
   adminSelectedId = null;
   adminImagePath = null;
   adminFilePath = null;
   adminForm.reset();
+  adminPublishedAt.value = localDateString();
+  selectedAdminGenres.clear();
+  renderGenreChoices();
   adminCategoryInput.value = currentWarehouseCategory || 'drumkits';
   adminImageName.textContent = ui.adminNoFileSelected;
   adminFileName.textContent = ui.adminNoFileSelected;
@@ -286,6 +381,10 @@ function editAdminItem(id) {
   adminCategoryInput.value = item.category;
   adminTitleInput.value = item.title;
   adminDescriptionInput.value = item.description;
+  adminPublishedAt.value = item.publishedAt || localDateString();
+  selectedAdminGenres.clear();
+  for (const genre of item.genres || []) selectedAdminGenres.add(genre);
+  renderGenreChoices();
   adminImagePath = null;
   adminFilePath = null;
   adminImageName.textContent = ui.adminNoFileSelected;
@@ -435,6 +534,18 @@ document.getElementById('warehouse-back').addEventListener('click', showWarehous
 document.getElementById('warehouse-downloads').addEventListener('click', showWarehouseDownloads);
 document.getElementById('warehouse-favorites').addEventListener('click', showWarehouseFavorites);
 document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
+genreFilterTrigger.addEventListener('click', () => {
+  const opening = genreFilterOptions.hidden;
+  genreFilterOptions.hidden = !opening;
+  genreFilterTrigger.setAttribute('aria-expanded', String(opening));
+});
+document.addEventListener('click', (event) => {
+  if (genreFilter && !genreFilter.contains(event.target)) {
+    genreFilterOptions.hidden = true;
+    genreFilterTrigger.setAttribute('aria-expanded', 'false');
+  }
+});
+document.getElementById('admin-publish-today').addEventListener('click', () => { adminPublishedAt.value = localDateString(); });
 warehouseAdminTrigger.addEventListener('click', () => {
   adminPinInput.value = '';
   adminPinError.textContent = '';
@@ -474,6 +585,8 @@ adminForm.addEventListener('submit', async (event) => {
       category: adminCategoryInput.value,
       title: adminTitleInput.value,
       description: adminDescriptionInput.value,
+      publishedAt: adminPublishedAt.value,
+      genres: [...selectedAdminGenres],
       imagePath: adminImagePath,
       filePath: adminFilePath
     });
@@ -890,7 +1003,9 @@ function searchItems() {
     items.push({ kind: 'folder', title: ui[category], detail: ui.storage, text: ui[category], place: { type: 'warehouse', category } });
   }
   for (const item of warehouseCatalog.items) {
-    items.push({ kind: 'topic', title: item.title, detail: ui[item.category], text: `${item.title} ${item.description}`, place: { type: 'warehouse-item', itemId: item.id } });
+    const genreNames = (item.genres || []).map(genreLabel).join(' ');
+    const published = publicationText(item.publishedAt);
+    items.push({ kind: 'topic', title: item.title, detail: [ui[item.category], published && `${ui.published} ${published}`, genreNames].filter(Boolean).join(' · '), text: `${item.title} ${item.description} ${genreNames}`, place: { type: 'warehouse-item', itemId: item.id } });
   }
   for (const folder of library.folders) {
     items.push({ kind: 'folder', title: folder.title, detail: folder.description, text: folder.title + ' ' + folder.description, place: { type: 'folder', folderId: folder.id } });
