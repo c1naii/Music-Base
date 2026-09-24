@@ -37,6 +37,8 @@ test('preferences are validated and saved across launches', () => {
       { type: 'warehouse-item', itemId: 'd4baccd5-188f-4ac2-90b1-11745ca57cfe' });
     assert.deepEqual(normalizePreferences({ lastPlace: { type: 'warehouse-downloads' } }).lastPlace,
       { type: 'warehouse-downloads' });
+    assert.deepEqual(normalizePreferences({ lastPlace: { type: 'fl-studio' } }).lastPlace,
+      { type: 'fl-studio' });
     assert.deepEqual(normalizePreferences({ lastPlace: { type: 'warehouse', category: 'banks' } }).lastPlace,
       { type: 'warehouse', category: 'banks' });
     const resume = { ...loadPreferences(file), lastPlace: { type: 'warehouse-item', itemId: 'd4baccd5-188f-4ac2-90b1-11745ca57cfe' } };

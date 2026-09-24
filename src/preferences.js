@@ -27,7 +27,7 @@ function normalizePreferences(value = {}) {
   const validWarehouseItem = place?.type === 'warehouse-item' &&
     typeof place.itemId === 'string' && /^[a-f0-9-]{36}$/i.test(place.itemId);
   const lastPlace = place && typeof place === 'object' &&
-    (['library', 'folder', 'topic', 'note', 'warehouse-home', 'warehouse-favorites', 'warehouse-downloads'].includes(place.type) || validWarehousePlace || validWarehouseItem) &&
+    (['library', 'folder', 'topic', 'note', 'warehouse-home', 'warehouse-favorites', 'warehouse-downloads', 'fl-studio'].includes(place.type) || validWarehousePlace || validWarehouseItem) &&
     (place.folderId === undefined || typeof place.folderId === 'string') &&
     (place.topicId === undefined || typeof place.topicId === 'string') &&
     (place.noteTitle === undefined || typeof place.noteTitle === 'string') ? {

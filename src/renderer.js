@@ -17,6 +17,13 @@ const warehouseCategoryList = document.getElementById('warehouse-categories');
 const warehouseEmptyView = document.getElementById('warehouse-empty-view');
 const warehouseDownloadsView = document.getElementById('warehouse-downloads-view');
 const warehouseDetailView = document.getElementById('warehouse-detail-view');
+const flStudioEntry = document.getElementById('fl-studio-entry');
+const flStudioView = document.getElementById('fl-studio-view');
+const flStudioDownloadButton = document.getElementById('fl-studio-download');
+const flStudioOpenButton = document.getElementById('fl-studio-open');
+const flStudioProgress = document.getElementById('fl-studio-progress');
+const flStudioProgressFill = document.getElementById('fl-studio-progress-fill');
+const flStudioStatus = document.getElementById('fl-studio-status');
 const warehouseEmptyTitle = document.getElementById('warehouse-empty-title');
 const warehouseItemsView = document.getElementById('warehouse-items');
 const genreFilter = document.getElementById('genre-filter');
@@ -53,12 +60,33 @@ let adminSelectedId = null;
 let adminImagePath = null;
 let adminFilePath = null;
 let adminDeletePending = false;
+let flStudioInstaller = { downloaded: false };
+let flStudioDownloading = false;
+let flStudioOpening = false;
+let flStudioPercent = 0;
+let flStudioError = '';
+
+function renderFlStudio() {
+  flStudioEntry.hidden = warehouseView !== 'categories';
+  flStudioView.hidden = warehouseView !== 'fl-studio';
+  flStudioDownloadButton.hidden = flStudioInstaller.downloaded;
+  flStudioOpenButton.hidden = !flStudioInstaller.downloaded;
+  flStudioDownloadButton.disabled = flStudioDownloading;
+  flStudioOpenButton.disabled = flStudioOpening;
+  flStudioDownloadButton.textContent = flStudioDownloading ? `${ui.flStudioDownloading} ${flStudioPercent}%` : ui.flStudioDownload;
+  flStudioProgress.hidden = !flStudioDownloading;
+  flStudioProgressFill.style.width = `${flStudioPercent}%`;
+  flStudioProgress.setAttribute('aria-valuenow', String(flStudioPercent));
+  flStudioStatus.textContent = flStudioError || (flStudioOpening ? ui.flStudioOpening :
+    flStudioInstaller.downloaded ? `${ui.flStudioReady} ${flStudioInstaller.name}` : '');
+}
 
 function renderWarehouse() {
   warehouseCategoryList.hidden = warehouseView !== 'categories';
   warehouseEmptyView.hidden = warehouseView !== 'category';
   warehouseDownloadsView.hidden = warehouseView !== 'downloads';
   warehouseDetailView.hidden = warehouseView !== 'detail';
+  renderFlStudio();
   if (currentWarehouseCategory) warehouseEmptyTitle.textContent = ui[currentWarehouseCategory];
   else if (favoriteFilter) warehouseEmptyTitle.textContent = ui.favorites;
   if (genreFilter) genreFilter.hidden = warehouseView !== 'category';
@@ -339,6 +367,16 @@ function showWarehouseHome() {
   renderWarehouse();
 }
 
+function showFlStudio() {
+  warehouseView = 'fl-studio';
+  rememberPlace({ type: 'fl-studio' });
+  renderWarehouse();
+  window.musicBase.getFlStudioInstallerStatus().then((status) => {
+    flStudioInstaller = status || { downloaded: false };
+    renderFlStudio();
+  }).catch(() => {});
+}
+
 function showWarehouseCategory(category) {
   if (!warehouseCategories.includes(category)) return;
   warehouseView = 'category';
@@ -543,9 +581,9 @@ function showPage(pageId, activeTab = null) {
 }
 
 function selectTab(tab, moveFocus = false) {
+  if (tab.id === 'tab-storage') showWarehouseHome();
   if (tab.getAttribute('aria-selected') === 'true') return;
   if (tab.id === 'tab-theory' && !libraryLoaded) showLibrary();
-  if (tab.id === 'tab-storage') showWarehouseHome();
   showPage(tab.getAttribute('aria-controls'), tab);
   if (moveFocus) tab.focus();
 }
@@ -568,6 +606,38 @@ document.getElementById('warehouse-back').addEventListener('click', showWarehous
 document.getElementById('warehouse-downloads').addEventListener('click', showWarehouseDownloads);
 document.getElementById('warehouse-favorites').addEventListener('click', showWarehouseFavorites);
 document.getElementById('warehouse-downloads-back').addEventListener('click', showWarehouseHome);
+flStudioEntry.addEventListener('click', showFlStudio);
+document.getElementById('fl-studio-back').addEventListener('click', showWarehouseHome);
+document.getElementById('fl-studio-source').addEventListener('click', () => window.musicBase.openFlStudioOfficialPage());
+flStudioDownloadButton.addEventListener('click', async () => {
+  if (flStudioDownloading) return;
+  flStudioDownloading = true;
+  flStudioPercent = 0;
+  flStudioError = '';
+  renderFlStudio();
+  try { flStudioInstaller = await window.musicBase.downloadFlStudioInstaller(); }
+  catch (error) { console.error('FL Studio download:', error); flStudioError = ui.flStudioDownloadError; }
+  finally { flStudioDownloading = false; renderFlStudio(); }
+});
+flStudioOpenButton.addEventListener('click', async () => {
+  if (flStudioOpening) return;
+  flStudioOpening = true;
+  flStudioError = '';
+  renderFlStudio();
+  try { await window.musicBase.openFlStudioInstaller(); }
+  catch (error) {
+    console.error('FL Studio installer:', error);
+    flStudioError = ui.flStudioOpenError;
+    try { flStudioInstaller = await window.musicBase.getFlStudioInstallerStatus() || { downloaded: false }; }
+    catch { flStudioInstaller = { downloaded: false }; }
+  }
+  finally { flStudioOpening = false; renderFlStudio(); }
+});
+window.musicBase.onFlStudioDownloadProgress((percent) => {
+  if (!flStudioDownloading) return;
+  flStudioPercent = percent;
+  renderFlStudio();
+});
 genreFilterTrigger.addEventListener('click', () => {
   const opening = genreFilterOptions.hidden;
   genreFilterOptions.hidden = !opening;
@@ -982,6 +1052,11 @@ async function openPlace(place) {
     else showWarehouseDownloads();
     return;
   }
+  if (place.type === 'fl-studio') {
+    selectTab(document.getElementById('tab-storage'));
+    showFlStudio();
+    return;
+  }
   if (place.type === 'warehouse-item') {
     selectTab(document.getElementById('tab-storage'));
     if (!warehouseCatalog.items.some((item) => item.id === place.itemId)) await refreshWarehouse();
@@ -1031,6 +1106,7 @@ function searchItems() {
   for (const category of warehouseCategories) {
     items.push({ kind: 'folder', title: ui[category], detail: ui.storage, text: ui[category], place: { type: 'warehouse', category } });
   }
+  items.push({ kind: 'folder', title: 'FL Studio', detail: ui.storage, text: `FL Studio ${ui.flStudioEntryDescription}`, place: { type: 'fl-studio' } });
   for (const item of warehouseCatalog.items) {
     const genreNames = (item.genres || []).map(genreLabel).join(' ');
     const dawNames = (item.supportedDaws || []).map(dawLabel).join(' ');

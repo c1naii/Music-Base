@@ -540,3 +540,37 @@ for (const locale of Object.values(window.musicI18n)) {
   delete locale.ui.dawIntegrationError;
   delete locale.ui.dawIntegrated;
 }
+
+Object.assign(window.musicI18n.ru.ui, {
+  flStudioEntryDescription: 'Официальный установщик для Windows',
+  flStudioOfficial: 'ОФИЦИАЛЬНАЯ ЗАГРУЗКА IMAGE-LINE',
+  flStudioIntro: 'Загрузите актуальный установщик Windows напрямую с сайта Image-Line. После загрузки откройте его и завершите установку обычным способом.',
+  flStudioDownload: 'Скачать установщик', flStudioDownloading: 'Скачивание',
+  flStudioOpen: 'Открыть установщик', flStudioOpening: 'Проверка и открытие установщика…',
+  flStudioSource: 'Сайт Image-Line ↗', flStudioReady: 'Готово:',
+  flStudioDownloadError: 'Не удалось скачать или проверить установщик. Воспользуйтесь официальным сайтом Image-Line.',
+  flStudioOpenError: 'Не удалось открыть установщик. Проверьте файл или скачайте его с официального сайта.',
+  flStudioNotice: 'Если защита Windows остановила файл, проверьте его цифровую подпись «Image Line» и источник загрузки. Не отключайте антивирус.'
+});
+Object.assign(window.musicI18n.en.ui, {
+  flStudioEntryDescription: 'Official Windows installer',
+  flStudioOfficial: 'OFFICIAL IMAGE-LINE DOWNLOAD',
+  flStudioIntro: 'Download the current Windows installer directly from Image-Line. Open it after downloading and complete the standard installation.',
+  flStudioDownload: 'Download installer', flStudioDownloading: 'Downloading',
+  flStudioOpen: 'Open installer', flStudioOpening: 'Verifying and opening installer…',
+  flStudioSource: 'Image-Line website ↗', flStudioReady: 'Ready:',
+  flStudioDownloadError: 'Could not download or verify the installer. Use the official Image-Line website.',
+  flStudioOpenError: 'Could not open the installer. Check the file or download it from the official website.',
+  flStudioNotice: 'If Windows security blocks the file, check its Image Line digital signature and download source. Keep your antivirus enabled.'
+});
+Object.assign(window.musicI18n.uk.ui, {
+  flStudioEntryDescription: 'Офіційний інсталятор для Windows',
+  flStudioOfficial: 'ОФІЦІЙНЕ ЗАВАНТАЖЕННЯ IMAGE-LINE',
+  flStudioIntro: 'Завантажте актуальний інсталятор Windows безпосередньо із сайту Image-Line. Після завантаження відкрийте його та завершіть звичайне встановлення.',
+  flStudioDownload: 'Завантажити інсталятор', flStudioDownloading: 'Завантаження',
+  flStudioOpen: 'Відкрити інсталятор', flStudioOpening: 'Перевірка та відкриття інсталятора…',
+  flStudioSource: 'Сайт Image-Line ↗', flStudioReady: 'Готово:',
+  flStudioDownloadError: 'Не вдалося завантажити або перевірити інсталятор. Скористайтеся офіційним сайтом Image-Line.',
+  flStudioOpenError: 'Не вдалося відкрити інсталятор. Перевірте файл або завантажте його з офіційного сайту.',
+  flStudioNotice: 'Якщо захист Windows зупинив файл, перевірте його цифровий підпис «Image Line» і джерело завантаження. Не вимикайте антивірус.'
+});

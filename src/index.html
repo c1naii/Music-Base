@@ -85,6 +85,20 @@
               <button class="warehouse-category" type="button" data-warehouse-category="banks"><span class="warehouse-category-mark" aria-hidden="true">05</span><span data-i18n="banks">&#1041;&#1040;&#1053;&#1050;&#1048;</span><span class="row-arrow" aria-hidden="true">&rarr;</span></button>
             </div>
             <section class="warehouse-empty-view" id="warehouse-empty-view" hidden><button class="library-back" id="warehouse-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><div class="warehouse-section-heading"><h2 class="warehouse-empty-title" id="warehouse-empty-title"></h2><div class="genre-filter" id="genre-filter"><button class="genre-filter-trigger" id="genre-filter-trigger" type="button" aria-expanded="false"><span data-i18n="genres">Жанры</span><span aria-hidden="true">⌄</span></button><div class="genre-filter-popover" id="genre-filter-options" hidden></div></div></div><div class="warehouse-items" id="warehouse-items"></div></section>
+            <button class="fl-studio-entry" id="fl-studio-entry" type="button" aria-controls="fl-studio-view">
+              <img src="../assets/fl-studio-logo.png" alt="" />
+              <span class="fl-studio-entry-copy"><strong>FL Studio</strong><span data-i18n="flStudioEntryDescription">Официальный установщик для Windows</span></span>
+              <span class="fl-studio-entry-arrow" aria-hidden="true">↗</span>
+            </button>
+            <section class="fl-studio-view" id="fl-studio-view" aria-labelledby="fl-studio-title" hidden>
+              <button class="library-back" id="fl-studio-back" type="button" data-i18n="allWarehouseSections">Все разделы</button>
+              <div class="fl-studio-heading"><img src="../assets/fl-studio-logo.png" alt="" /><div><p class="library-kicker" data-i18n="flStudioOfficial">ОФИЦИАЛЬНАЯ ЗАГРУЗКА IMAGE-LINE</p><h2 id="fl-studio-title">FL Studio</h2></div></div>
+              <p class="fl-studio-intro" data-i18n="flStudioIntro">Загрузите актуальный установщик Windows напрямую с сайта Image-Line. После загрузки откройте его и завершите установку обычным способом.</p>
+              <div class="fl-studio-actions"><button class="fl-studio-primary" id="fl-studio-download" type="button" data-i18n="flStudioDownload">Скачать установщик</button><button class="fl-studio-primary" id="fl-studio-open" type="button" data-i18n="flStudioOpen" hidden>Открыть установщик</button><button class="fl-studio-source" id="fl-studio-source" type="button" data-i18n="flStudioSource">Сайт Image-Line ↗</button></div>
+              <div class="fl-studio-progress" id="fl-studio-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span id="fl-studio-progress-fill"></span></div>
+              <p class="fl-studio-status" id="fl-studio-status" aria-live="polite"></p>
+              <p class="fl-studio-notice" data-i18n="flStudioNotice">Если защита Windows остановила файл, проверьте его цифровую подпись «Image Line» и источник загрузки. Не отключайте антивирус.</p>
+            </section>
             <section class="warehouse-detail-view" id="warehouse-detail-view" hidden></section>
             <section class="warehouse-downloads-view" id="warehouse-downloads-view" hidden><button class="library-back" id="warehouse-downloads-back" type="button" data-i18n="allWarehouseSections">Все разделы</button><h2 class="warehouse-empty-title" data-i18n="downloads">Загрузки</h2><p class="warehouse-empty-message" id="warehouse-downloads-empty" data-i18n="downloadsEmpty">Здесь пока нет загруженных файлов.</p><div class="warehouse-download-list" id="warehouse-downloads-list"></div></section>
           </div>

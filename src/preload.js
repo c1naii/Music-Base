@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('musicBase', {
   chooseDownloadDirectory: () => ipcRenderer.invoke('choose-download-directory'),
   resetDownloadDirectory: () => ipcRenderer.invoke('reset-download-directory'),
   createBackup: () => ipcRenderer.invoke('create-backup'),
+  getFlStudioInstallerStatus: () => ipcRenderer.invoke('fl-studio-status'),
+  downloadFlStudioInstaller: () => ipcRenderer.invoke('fl-studio-download'),
+  openFlStudioInstaller: () => ipcRenderer.invoke('fl-studio-open'),
+  openFlStudioOfficialPage: () => ipcRenderer.invoke('fl-studio-official-page'),
+  onFlStudioDownloadProgress: (callback) => {
+    if (typeof callback === 'function') ipcRenderer.on('fl-studio-download-progress', (_event, percent) => callback(percent));
+  },
   onUpdateStatus: (callback) => {
     if (typeof callback !== 'function') return;
     ipcRenderer.on('update-status', (_event, status) => callback(status));

@@ -6,6 +6,7 @@ const { loadPreferences, savePreferences } = require('./preferences');
 const { createNotesStore } = require('./notes');
 const { createWarehouseService } = require('./warehouse');
 const { createBackupService } = require('./backup');
+const { createFlStudioInstallerService } = require('./fl-studio');
 
 const SPLASH_DURATION_MS = 2600;
 const FADE_DURATION_MS = 360;
@@ -20,6 +21,7 @@ let preferencesFile;
 let notesStore;
 let warehouseStore;
 let backupStore;
+let flStudioInstaller;
 let defaultDownloadsDirectory;
 let warehouseAdminUnlocked = false;
 
@@ -84,6 +86,16 @@ function fadeIn(window) {
   }, FADE_STEP_MS);
 }
 
+function fadeOutSplash(window) {
+  let opacity = 1;
+  const timer = setInterval(() => {
+    if (window.isDestroyed()) { clearInterval(timer); return; }
+    opacity = Math.max(0, opacity - FADE_STEP_MS / FADE_DURATION_MS);
+    window.setOpacity(opacity);
+    if (opacity === 0) { clearInterval(timer); window.close(); }
+  }, FADE_STEP_MS);
+}
+
 function createApp() {
   mainWindow = createWindow({
     ...visibleBounds(preferences.bounds),
@@ -97,6 +109,7 @@ function createApp() {
     language: preferences.language,
     effects: preferences.visualEffects ? 'on' : 'off'
   });
+  if (preferences.showSplash) mainWindow.setOpacity(0);
 
   mainWindow.on('close', () => {
     preferences.bounds = mainWindow.getNormalBounds();
@@ -123,10 +136,16 @@ function createApp() {
 
   let mainReady = false;
   let splashDone = !preferences.showSplash;
+  let mainShown = false;
   const showMain = () => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible() || !mainReady || !splashDone) return;
+    if (!mainWindow || mainWindow.isDestroyed() || mainShown || !mainReady || !splashDone) return;
+    mainShown = true;
+    if (preferences.showSplash) mainWindow.setOpacity(0);
     if (preferences.maximized && !mainWindow.isMaximized()) mainWindow.maximize();
-    if (preferences.showSplash) fadeIn(mainWindow);
+    if (preferences.showSplash) {
+      fadeIn(mainWindow);
+      if (splashWindow && !splashWindow.isDestroyed()) fadeOutSplash(splashWindow);
+    }
     else mainWindow.show();
   };
 
@@ -149,7 +168,8 @@ function createApp() {
     splashWindow.once('ready-to-show', () => {
       splashWindow.show();
       setTimeout(() => {
-        if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+        splashDone = true;
+        showMain();
       }, SPLASH_DURATION_MS);
     });
     splashWindow.on('closed', () => {
@@ -175,6 +195,17 @@ ipcMain.on('window-control', (event, action) => {
 });
 
 ipcMain.handle('app-version', () => app.getVersion());
+
+ipcMain.handle('fl-studio-status', (event) => isMainWindow(event) ? flStudioInstaller.status() : null);
+ipcMain.handle('fl-studio-download', (event) => {
+  if (!isMainWindow(event)) return null;
+  return flStudioInstaller.download((percent) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('fl-studio-download-progress', percent);
+  });
+});
+ipcMain.handle('fl-studio-open', (event) => isMainWindow(event) ? flStudioInstaller.open() : null);
+ipcMain.handle('fl-studio-official-page', (event) => isMainWindow(event) ?
+  shell.openExternal('https://www.image-line.com/fl-studio/download?os=windows') : null);
 
 function isMainWindow(event) {
   return BrowserWindow.fromWebContents(event.sender) === mainWindow;
@@ -308,6 +339,10 @@ app.whenReady().then(() => {
   const userDataDirectory = path.join(app.getPath('userData'), 'Data');
   notesStore = createNotesStore(notesDataDirectory);
   defaultDownloadsDirectory = path.join(app.getPath('documents'), 'Music Base');
+  flStudioInstaller = createFlStudioInstallerService({
+    directory: path.join(defaultDownloadsDirectory, 'Installers'),
+    openPath: (file) => shell.openPath(file)
+  });
   warehouseStore = createWarehouseService({
     dataDirectory: userDataDirectory,
     downloadsDirectory: preferences.downloadDirectory || defaultDownloadsDirectory,
